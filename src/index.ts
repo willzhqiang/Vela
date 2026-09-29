@@ -132,3 +132,5 @@ export type { VisibleRangePreset } from './core/visible-range';
 
 // The plugin SDK surface (also available as the `vela/plugin` subpath).
 export * from './plugin';
+export { frameAroundDate, parseGoToDate, barsNeededToReach, DEFAULT_GOTO_BARS } from './core/go-to-date';
+export type { GoToDateOptions, ParsedGoTo } from './core/go-to-date';

@@ -29,6 +29,7 @@ import { LiveSession } from './LiveSession';
 import { IndicatorHandleImpl, type IndicatorController } from './IndicatorHandleImpl';
 import { inspectModels, type SceneInspection } from './inspect';
 import { presetToRange, type VisibleRangePreset } from '../visible-range';
+import { barsNeededToReach, frameAroundDate, type GoToDateOptions } from '../go-to-date';
 import { DrawingController } from '../drawings/DrawingController';
 import { MarksController } from '../marks/MarksController';
 import { DrawingSeriesService } from './DrawingSeriesService';
@@ -2058,6 +2059,35 @@ export class EngineOrchestrator implements IndicatorController, PaneController, 
     /** Set the visible time range explicitly (epoch-ms `from`/`to`). */
     setVisibleRange(range: VisibleRange): void {
         this.renderer.setVisibleRange(range);
+    }
+
+    /**
+     * Jump to a point in time and frame the bars around it (TradingView's "Go to…").
+     *
+     * A target older than the loaded history first waits for any backfill in flight, then
+     * deepens the history the same way `replay.start` does (a depth-only `setMarket`), sized
+     * from the density of the bars already loaded so session gaps don't over-fetch. Once the
+     * bars are there the window is centred on the nearest bar at-or-after `ts`; a target past
+     * the source's genesis frames the oldest bars. During a replay only the bars revealed so
+     * far are framed and the history is never deepened (the replay owns the tape).
+     */
+    async goToDate(ts: number, opts: GoToDateOptions = {}): Promise<void> {
+        if (!Number.isFinite(ts) || this.rawBars.length === 0) return;
+        const gen = this.generation;
+        if (this.replayQueue === null && ts < this.rawBars[0]!.time) {
+            await this.historyCompletePromise;
+            if (this.generation !== gen || this.rawBars.length === 0) return; // superseded by a market switch
+            if (ts < this.rawBars[0]!.time && this.canHeal() && typeof this.feed.loadRange === 'function') {
+                const bars = barsNeededToReach(this.rawBars, ts, opts.bars);
+                const deepened = this.setMarket({ bars });
+                await deepened;
+                const gen2 = this.generation;
+                await this.historyCompletePromise;
+                if (this.generation !== gen2 || this.rawBars.length === 0) return;
+            }
+        }
+        const range = frameAroundDate(this.rawBars, ts, opts.bars);
+        if (range) this.renderer.setVisibleRange(range);
     }
 
     /** Pan by a fraction of the visible width (positive ⇒ toward the latest bars).

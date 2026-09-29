@@ -29,6 +29,7 @@ import { PanelDock } from '../widget/panel-dock';
 import { SymbolPicker } from '../widget/symbol-picker';
 import { IndicatorPicker } from '../widget/indicator-picker';
 import { TimeframeQuick } from '../widget/timeframe-quick';
+import { GoToDateDialog } from '../widget/go-to-date';
 import { ShortcutsHelp } from '../widget/shortcuts-help';
 import { Toast } from '../widget/toast';
 import { Glider, ZOOM_IN, ZOOM_OUT, PAN_FAST } from '../widget/glide';
@@ -303,6 +304,7 @@ export class VelaWorkspace {
     /** Null when the host disabled it (`indicatorPicker: false`). */
     private readonly indicatorPicker: IndicatorPicker | null;
     private readonly tfQuick: TimeframeQuick;
+    private readonly goToDateDialog: GoToDateDialog;
     private shortcutsHelp: ShortcutsHelp | null = null;
     private readonly toastHost: Toast;
     private readonly glider = new Glider(() => (this.activeId ? (this.cellsById.get(this.activeId)?.chart ?? null) : null));
@@ -509,6 +511,12 @@ export class VelaWorkspace {
         this.tfQuick = new TimeframeQuick({
             host: this.root,
             onApply: (tf) => this.setActiveTimeframe(tf),
+            onOpenChange: (open) => this.trackDialog(open),
+        });
+        this.goToDateDialog = new GoToDateDialog({
+            host: this.root,
+            zone: () => this.active.displayTimezone,
+            onApply: (ts) => void this.active.chart.goToDate(ts),
             onOpenChange: (open) => this.trackDialog(open),
         });
 
@@ -1334,6 +1342,7 @@ export class VelaWorkspace {
         this.symbolPicker.destroy();
         this.indicatorPicker?.destroy();
         this.tfQuick.destroy();
+        this.goToDateDialog.destroy();
         this.shortcutsHelp?.destroy();
         this.toastHost.destroy();
         this.alertsMenu?.destroy();
@@ -2295,6 +2304,7 @@ export class VelaWorkspace {
                 run: ov ? () => this.runOverride(ov) : () => this.downloadScreenshot(),
             });
         }
+        this.keymap.register({ id: 'chart.go-to-date', keys: 'alt+g', label: 'Go to date…', category: 'Chart', run: () => this.goToDateDialog.open() });
         this.keymap.register({ id: 'chart.reset-view', keys: 'alt+r', label: 'Reset view (all history)', category: 'Chart', run: () => this.active.chart.setVisibleRangePreset('ALL') });
         this.keymap.register({ id: 'chart.toggle-log', keys: 'alt+l', label: 'Toggle logarithmic scale', category: 'Chart', run: () => this.active.chart.renderer.set('logScale', !this.active.chart.renderer.get('logScale')) });
         this.keymap.register({

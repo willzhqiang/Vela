@@ -2,6 +2,7 @@ import type { IChartRenderer, VisibleRange } from './core/ports/IChartRenderer';
 import type { ScriptingEngine } from './core/ports/ScriptingEngine';
 import type { MarketDataFeed } from './core/ports/MarketDataFeed';
 import type { VisibleRangePreset } from './core/visible-range';
+import type { GoToDateOptions } from './core/go-to-date';
 import type { VelaOptions, VelaTheme, ThemeName, MarketSwitch, MarketSnapshot, AddIndicatorOptions } from './core/options';
 import { resolveAnimations } from './core/options';
 import type { InputValue } from './core/model/inputs';
@@ -444,6 +445,16 @@ export class Vela {
     setVisibleRangePreset(preset: VisibleRangePreset): this {
         this.orchestrator.setVisibleRangePreset(preset);
         return this;
+    }
+
+    /**
+     * Jump to a date/time and frame the bars around it (default ~120 bars, centred on the
+     * nearest bar at-or-after `when`). Unlike `setVisibleRange`, a target older than the loaded
+     * history is fetched first (the history is deepened like `replay.start` does), so this
+     * works for any date the data source can serve. Resolves once the frame is applied.
+     */
+    goToDate(when: number | Date, opts?: GoToDateOptions): Promise<void> {
+        return this.orchestrator.goToDate(when instanceof Date ? when.getTime() : when, opts);
     }
 
     resize(): void {
