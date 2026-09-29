@@ -84,6 +84,23 @@ function parseChord(spec: string, mac: boolean): Chord {
     return chord;
 }
 
+/**
+ * The key an event stands for. That is `event.key`, except when Option/Alt composed it into a
+ * symbol: on macOS Option+G reports '©', Option+1 '¡' and Option+E the dead key 'Dead', so an
+ * `alt+g` chord could never match and every Alt+letter shortcut was dead on a Mac. Then — and only
+ * then — the physical key (`event.code`: KeyG / Digit1) tells which key was pressed. A `key` that is
+ * already an ASCII letter or digit always wins, so non-QWERTY layouts (AZERTY 'a' on KeyQ) keep
+ * meaning what the user's layout says.
+ */
+function eventKey(ev: KeyboardEvent): string {
+    const key = ev.key.toLowerCase();
+    if (ev.altKey && !/^[a-z0-9]$/.test(key) && typeof ev.code === 'string') {
+        const m = /^(?:Key([A-Z])|Digit([0-9]))$/.exec(ev.code);
+        if (m) return (m[1] ?? m[2])!.toLowerCase();
+    }
+    return key;
+}
+
 function eventMatches(ev: KeyboardEvent, c: Chord): boolean {
     return (
         ev.ctrlKey === c.ctrl &&
@@ -92,7 +109,7 @@ function eventMatches(ev: KeyboardEvent, c: Chord): boolean {
         // Shift is part of producing many printable keys ('?', '+') — only enforce it
         // when the chord names a non-printable/letter key where shift is a real modifier.
         (c.key.length > 1 || /^[a-z0-9 ]$/.test(c.key) ? ev.shiftKey === c.shift : true) &&
-        ev.key.toLowerCase() === c.key
+        eventKey(ev) === c.key
     );
 }
 

@@ -6,6 +6,7 @@ import { KeymapManager } from '../src/ui/keymap';
 
 interface EvInit {
     key: string;
+    code?: string;
     ctrlKey?: boolean;
     metaKey?: boolean;
     altKey?: boolean;
@@ -35,6 +36,40 @@ describe('KeymapManager', () => {
         km.register({ id: 'esc', keys: 'esc', label: 'E', run });
         expect(km.handleKeydown(ev({ key: 'Escape' }))).toBe(true);
         expect(run).toHaveBeenCalledTimes(2);
+    });
+
+    it('Option+letter/digit on macOS matches by the physical key when Option composes a symbol', () => {
+        // macOS turns Option+G into '©', Option+1 into '¡', Option+E into a dead key: `key` no longer
+        // says which key was pressed, `code` does. Every Alt+letter chord was dead on a Mac before this.
+        const km = new KeymapManager({ platform: 'mac' });
+        const g = vi.fn();
+        const one = vi.fn();
+        km.register({ id: 'g', keys: 'alt+g', label: 'G', run: g });
+        km.register({ id: 'one', keys: 'alt+1', label: 'One', run: one });
+        expect(km.handleKeydown(ev({ key: '\u00a9', code: 'KeyG', altKey: true }))).toBe(true);
+        expect(km.handleKeydown(ev({ key: '\u00a1', code: 'Digit1', altKey: true }))).toBe(true);
+        expect(g).toHaveBeenCalledTimes(1);
+        expect(one).toHaveBeenCalledTimes(1);
+
+        const e = new KeymapManager({ platform: 'mac' });
+        const run = vi.fn();
+        e.register({ id: 'e', keys: 'alt+e', label: 'E', run });
+        expect(e.handleKeydown(ev({ key: 'Dead', code: 'KeyE', altKey: true }))).toBe(true);
+    });
+
+    it('the physical-key fallback is only for Alt and only when key is not already a letter/digit', () => {
+        const km = new KeymapManager({ platform: 'mac' });
+        const run = vi.fn();
+        km.register({ id: 'g', keys: 'alt+g', label: 'G', run });
+        // no Alt: a composed symbol never matches
+        expect(km.handleKeydown(ev({ key: '\u00a9', code: 'KeyG' }))).toBe(false);
+        // a real letter respects the user's layout: AZERTY 'a' sits on the physical KeyQ, and must NOT fire alt+q
+        km.register({ id: 'q', keys: 'alt+q', label: 'Q', run });
+        expect(km.handleKeydown(ev({ key: 'a', code: 'KeyQ', altKey: true }))).toBe(false);
+        // and other modifiers are still enforced
+        expect(km.handleKeydown(ev({ key: '\u00a9', code: 'KeyG', altKey: true, shiftKey: true }))).toBe(false);
+        expect(km.handleKeydown(ev({ key: '\u00a9', code: 'KeyG', altKey: true, metaKey: true }))).toBe(false);
+        expect(run).not.toHaveBeenCalled();
     });
 
     it("'mod' resolves to meta on mac and ctrl elsewhere", () => {
