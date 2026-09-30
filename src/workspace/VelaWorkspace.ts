@@ -29,7 +29,7 @@ import { PanelDock } from '../widget/panel-dock';
 import { SymbolPicker } from '../widget/symbol-picker';
 import { IndicatorPicker } from '../widget/indicator-picker';
 import { TimeframeQuick } from '../widget/timeframe-quick';
-import { GoToDateDialog } from '../widget/go-to-date';
+import { GoToDialog } from '../widget/go-to';
 import { ReplayUi } from '../widget/replay-ui';
 import { ShortcutsHelp } from '../widget/shortcuts-help';
 import { Toast } from '../widget/toast';
@@ -305,8 +305,8 @@ export class VelaWorkspace {
     /** Null when the host disabled it (`indicatorPicker: false`). */
     private readonly indicatorPicker: IndicatorPicker | null;
     private readonly tfQuick: TimeframeQuick;
-    private readonly goToDateDialog: GoToDateDialog;
-    private readonly replayDateDialog: GoToDateDialog;
+    private readonly goToDateDialog: GoToDialog;
+    private readonly replayDateDialog: GoToDialog;
     private replayUi!: ReplayUi;
     private shortcutsHelp: ShortcutsHelp | null = null;
     private readonly toastHost: Toast;
@@ -516,10 +516,12 @@ export class VelaWorkspace {
             onApply: (tf) => this.setActiveTimeframe(tf),
             onOpenChange: (open) => this.trackDialog(open),
         });
-        this.goToDateDialog = new GoToDateDialog({
+        this.goToDateDialog = new GoToDialog({
             host: this.root,
             zone: () => this.active.displayTimezone,
-            onApply: (ts) => void this.active.chart.goToDate(ts),
+            current: () => this.active.chart.getVisibleRange(),
+            onGoToDate: (ts) => void this.active.chart.goToDate(ts),
+            onGoToRange: (from, to) => void this.active.chart.goToRange(from, to),
             onOpenChange: (open) => this.trackDialog(open),
         });
 
@@ -613,12 +615,14 @@ export class VelaWorkspace {
         this.root.appendChild(this.stripsEl);
         this.toastHost = new Toast(this.gridEl);
         // Bar replay's chrome: the start-bar picker and control bar float in the grid; the date
-        // dialog is a second instance of Go to date, titled for what it does here.
-        this.replayDateDialog = new GoToDateDialog({
+        // dialog is a second instance of the Go to dialog: one date, no range, worded for replay.
+        this.replayDateDialog = new GoToDialog({
             host: this.root,
-            title: 'Replay from date',
+            title: 'Replay from',
+            applyLabel: 'Start',
+            ranges: false,
             zone: () => this.active.displayTimezone,
-            onApply: (ts) => void this.replayUi.startFromDate(ts),
+            onGoToDate: (ts) => void this.replayUi.startFromDate(ts),
             onOpenChange: (open) => this.trackDialog(open),
         });
         this.replayUi = new ReplayUi({

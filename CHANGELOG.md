@@ -14,8 +14,13 @@ All notable changes to Vela, newest first.
   how many bars are left, lets you choose another start, and exits back to the full history on
   every chart. Start it from any chart: the others show the bars that had closed by then. The
   `topbar` option's new `'replay'` entry removes the button.
-- **A Go to date button in the bottom bar.** A calendar button after the range chips opens the
-  Go to date dialog that Alt+G already opened, so jumping to a day no longer needs the shortcut.
+- **A full Go to dialog, with a button in the bottom bar.** A calendar button after the range
+  chips (and Alt+G) opens *Go to*: a Date tab with a day field, a time field and a month
+  calendar, and a Custom range tab where two clicks on the calendar choose a start and an end.
+  Days after today are not pickable, the week starts on Monday, and everything is read in the
+  chart's time zone. The new `chart.goToRange(from, to)` frames the bars between two instants,
+  loading older history first when needed. The replay's *Select date…* uses the same dialog
+  for a single date.
 
 ### Fixed
 

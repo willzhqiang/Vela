@@ -217,6 +217,24 @@ The payload is the chart-level [`ScriptRun`](./api-reference.md#capturing-what-a
 plus `cell`; everything there — `cause`, `forming`, `plots`, `vars`, `strategy`, `trades()` —
 applies unchanged.
 
+## The Go to dialog
+
+The calendar button in the bottom bar (or **Alt+G**) opens *Go to*, which reads days and times on
+the active chart's wall clock in its display time zone. It has two tabs:
+
+- **Date** — a day and a time. Type them (`2026-06-15`, `06-15`, `yesterday`, or `2026-06-15 10:30`
+  in the date field; `9:30` or `0930` in the time field) or click a day in the month calendar, then
+  choose **Go to**: the chart frames about 120 bars around the nearest bar at or after that moment,
+  loading older history first when it has to.
+- **Custom range** — a start and an end, opened on what the chart shows now. Click two days on the
+  calendar (the first sets the start, the second the end, and an end before the start swaps them),
+  or type them; the days between are marked. **Go to** frames the bars from the start to the end
+  ([`goToRange`](./api-reference.md#core-methods)). An end before the start on the same day
+  disables the button and says why.
+
+Days after today cannot be picked. Enter applies, Escape closes, and Cancel leaves the chart as it
+was. While a replay runs, both tabs frame only the bars revealed so far.
+
 ## Bar replay across the grid
 
 `ws.replay` rewinds **every cell at once** and replays them on one clock. It takes the same
@@ -512,7 +530,7 @@ they work from the very first keystroke, before any click.
   right edge instead of shrinking the chart, and a pin in its header docks it as a column
   whenever you prefer that. Which panel is open, the widths you dragged and the panels you
   pinned are part of the saved state.
-- **Bottom bar** — range chips, a **Go to date** button (the same dialog as Alt+G), a live clock, and the timezone picker. Each chip switches
+- **Bottom bar** — range chips, a **Go to** button (the calendar icon; the same dialog as Alt+G), a live clock, and the timezone picker. Each chip switches
   the active chart's timeframe, **fetches the depth its window needs**, and frames it:
   `1D`→1m, `7D`→5m, `1M`→30m, `3M`→1h, `6M`→4h, `YTD`/`1Y`→1D, `5Y`/`ALL`→1W. Changing
   the timeframe by hand leaves range mode (the chip clears and the fetch depth returns
