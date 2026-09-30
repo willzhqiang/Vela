@@ -333,7 +333,6 @@ export class ReplayUi {
         // A bar nobody pinned goes back to its default spot for the next replay.
         if (s.phase === 'idle' && !this.pinned) this.placement = null;
         this.paintPin();
-        this.applyPlacement();
         this.pickPart.hidden = s.phase !== 'picking';
         this.controlsPart.hidden = s.phase === 'idle' || s.phase === 'picking';
         const playing = s.phase === 'playing';
@@ -344,12 +343,14 @@ export class ReplayUi {
         this.stepBtn.disabled = !this.model.canStep;
         for (const [ms, b] of this.speedBtns) b.setAttribute('aria-pressed', String(ms === s.intervalMs));
         this.renderStatus();
+        this.applyPlacement(); // after the visible parts are settled: the bar's width is what places it
         this.opts.onChange?.(s);
     }
 
     private renderStatus(): void {
         const { active, remaining } = this.opts.replay.state;
         this.statusEl.textContent = active ? `${remaining.toLocaleString('en-US')} ${remaining === 1 ? 'bar' : 'bars'} left` : '';
+        if (this.placement) this.applyPlacement(); // the text's width moves a pinned bar's free space
     }
 
     private part(): HTMLElement {
@@ -428,7 +429,11 @@ export class ReplayUi {
         grip.addEventListener('pointerdown', (e) => {
             if (this.pinned) return;
             e.preventDefault();
-            from = { x: e.clientX, y: e.clientY, left: this.root.offsetLeft, top: this.root.offsetTop };
+            // The bar's visible corner relative to the host — its default spot is centred with a transform,
+            // which `offsetLeft` would not see.
+            const at = this.root.getBoundingClientRect();
+            const home = this.opts.host.getBoundingClientRect();
+            from = { x: e.clientX, y: e.clientY, left: at.left - home.left, top: at.top - home.top };
             try {
                 grip.setPointerCapture((e as PointerEvent).pointerId);
             } catch {

@@ -515,7 +515,10 @@ function measure(rig: Rig, host = { w: 1000, h: 600 }, barSize = { w: 400, h: 40
         for (const [k, v] of Object.entries(props)) Object.defineProperty(el, k, { configurable: true, get: () => v });
     };
     def(rig.host, { clientWidth: host.w, clientHeight: host.h });
-    def(bar(rig), { offsetWidth: barSize.w, offsetHeight: barSize.h, offsetLeft: at.left, offsetTop: at.top });
+    def(bar(rig), { offsetWidth: barSize.w, offsetHeight: barSize.h, offsetLeft: 999, offsetTop: 999 }); // offsets are a decoy: a centring transform makes them lie
+    // Where the bar visibly is, relative to the host (both rects share an origin here).
+    rig.host.getBoundingClientRect = () => new DOMRect(0, 0, host.w, host.h);
+    bar(rig).getBoundingClientRect = () => new DOMRect(at.left, at.top, barSize.w, barSize.h);
 }
 const grip = (rig: Rig): HTMLElement => btn(rig, 'grip');
 const pointer = (el: Element, type: string, x: number, y: number): void => {
