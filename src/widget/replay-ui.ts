@@ -10,7 +10,7 @@ import { ACCENT } from '../core/palette';
 import type { WorkspaceReplay } from '../workspace/WorkspaceReplay';
 import { iconEl } from '../ui/icons';
 import { injectStyles } from '../ui/styles';
-import { ReplayUiModel, REPLAY_SPEEDS, type ReplaySpeed, type ReplayUiPhase, type ReplayUiSnapshot } from './replay-ui-model';
+import { ReplayUiModel, REPLAY_SPEEDS, placeBar, placementFromPixels, sanitizePlacement, type BarPlacement, type ReplaySpeed, type ReplayUiPhase, type ReplayUiSnapshot } from './replay-ui-model';
 
 const STYLE_ID = 'vela-replay-ui';
 const CSS = `
@@ -63,6 +63,9 @@ const CSS = `
 .vela-replay-speeds .vela-replay-btn[aria-pressed='true'] { color: var(--vela-selected-fg); }
 .vela-replay-status { padding: 0 8px; color: var(--vela-fg-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .vela-replay-hint { padding: 0 8px; color: var(--vela-fg-bright); }
+.vela-replay-grip { min-width: 20px; padding: 0 2px; color: var(--vela-fg-faint); cursor: grab; touch-action: none; }
+.vela-replay-grip:active { cursor: grabbing; }
+.vela-replay[data-pinned] .vela-replay-grip { cursor: default; opacity: 0.4; }
 `;
 
 /** The slice of a chart's renderer the picker drives. */
@@ -91,9 +94,46 @@ export interface ReplayUiOptions {
     speeds?: readonly ReplaySpeed[];
     /** Called after every phase or pace change — hosts mirror it on a toolbar button. */
     onChange?(snapshot: ReplayUiSnapshot): void;
+    /** Where a pinned bar's position is remembered (default: `localStorage`). */
+    store?: ReplayBarStore;
 }
 
 const FALLBACK_VEIL = '#000000';
+
+/** What the bar remembers between replays (and page loads): pinned, and where. */
+export interface ReplayBarSaved {
+    pinned: boolean;
+    placement: BarPlacement | null;
+}
+
+/** Where {@link ReplayBarSaved} lives. The default keeps it in `localStorage`. */
+export interface ReplayBarStore {
+    load(): ReplayBarSaved;
+    save(value: ReplayBarSaved): void;
+}
+
+const STORE_KEY = 'vela-replay-bar';
+
+function localStorageStore(): ReplayBarStore {
+    return {
+        load() {
+            try {
+                const raw = JSON.parse(globalThis.localStorage?.getItem(STORE_KEY) ?? 'null') as { pinned?: unknown; placement?: unknown } | null;
+                const placement = sanitizePlacement(raw?.placement);
+                return raw?.pinned === true && placement ? { pinned: true, placement } : { pinned: raw?.pinned === true, placement: null };
+            } catch {
+                return { pinned: false, placement: null };
+            }
+        },
+        save(value) {
+            try {
+                globalThis.localStorage?.setItem(STORE_KEY, JSON.stringify(value));
+            } catch {
+                /* storage blocked — the bar just forgets */
+            }
+        },
+    };
+}
 
 export class ReplayUi {
     readonly model = new ReplayUiModel();
@@ -113,6 +153,16 @@ export class ReplayUi {
     private offCells: (() => void) | null = null;
     private armed = false;
     private destroyed = false;
+    private readonly store: ReplayBarStore;
+    private readonly pinBtn: HTMLButtonElement;
+    private readonly gripBtn: HTMLButtonElement;
+    private pinned: boolean;
+    /** Where the bar was dragged to; null ⇒ its default spot (top centre). */
+    private placement: BarPlacement | null;
+    /** The bar the replay started on, marked on every chart while set. */
+    private startTime: number | null = null;
+    private offMarkerCells: (() => void) | null = null;
+    private readonly onResize = (): void => this.applyPlacement();
 
     constructor(private readonly opts: ReplayUiOptions) {
         this.doc = opts.host.ownerDocument;
@@ -124,6 +174,15 @@ export class ReplayUi {
         this.root.setAttribute('role', 'toolbar');
         this.root.setAttribute('aria-label', 'Bar replay');
         this.root.hidden = true;
+
+        this.store = opts.store ?? localStorageStore();
+        const saved = this.store.load();
+        this.pinned = saved.pinned;
+        this.placement = saved.pinned ? saved.placement : null;
+        this.gripBtn = this.button('grip', 'grip', 'Move the bar', () => undefined);
+        this.gripBtn.classList.add('vela-replay-grip');
+        this.wireDrag(this.gripBtn);
+        this.pinBtn = this.button('pin', 'pin', 'Pin the bar in place', () => this.togglePin());
 
         this.pickPart = this.part();
         const hint = this.doc.createElement('span');
@@ -157,21 +216,25 @@ export class ReplayUi {
             this.sep(),
             speedsEl,
             this.statusEl,
+            this.pinBtn,
             this.button('exit', 'close', 'Exit replay', () => this.exit()),
         );
 
-        this.root.append(this.pickPart, this.controlsPart);
+        this.root.append(this.gripBtn, this.pickPart, this.controlsPart);
         opts.host.appendChild(this.root);
+        this.doc.defaultView?.addEventListener('resize', this.onResize);
 
         this.offs.push(
-            opts.replay.on('replay:start', () => {
+            opts.replay.on('replay:start', ({ cursorTime }) => {
                 this.model.engine('start');
+                this.setStartMarker(cursorTime);
                 this.renderStatus();
             }),
             opts.replay.on('replay:play', ({ intervalMs }) => this.model.engine('play', intervalMs)),
             opts.replay.on('replay:pause', () => this.model.engine('pause')),
             opts.replay.on('replay:step', () => this.renderStatus()),
             opts.replay.on('replay:end', ({ reason }) => {
+                this.setStartMarker(null);
                 this.model.engine('end');
                 if (reason === 'finished') opts.toast?.('Replay reached the last bar');
             }),
@@ -252,6 +315,8 @@ export class ReplayUi {
         if (this.destroyed) return;
         this.destroyed = true;
         this.disarm();
+        this.setStartMarker(null);
+        this.doc.defaultView?.removeEventListener('resize', this.onResize);
         for (const off of this.offs.splice(0)) off();
         this.root.remove();
     }
@@ -265,6 +330,10 @@ export class ReplayUi {
         else if (!wantArmed && this.armed) this.disarm();
         this.root.hidden = s.phase === 'idle';
         this.root.dataset.phase = s.phase;
+        // A bar nobody pinned goes back to its default spot for the next replay.
+        if (s.phase === 'idle' && !this.pinned) this.placement = null;
+        this.paintPin();
+        this.applyPlacement();
         this.pickPart.hidden = s.phase !== 'picking';
         this.controlsPart.hidden = s.phase === 'idle' || s.phase === 'picking';
         const playing = s.phase === 'playing';
@@ -310,6 +379,88 @@ export class ReplayUi {
         }
         b.addEventListener('click', onClick);
         return b;
+    }
+
+    // ── the start marker ──
+
+    /** Mark (or, with null, unmark) the bar the replay began on, on every chart — charts added later included. */
+    private setStartMarker(time: number | null): void {
+        this.startTime = time;
+        for (const c of this.opts.cells()) c.chart.renderer.set('replayStart', time);
+        if (time !== null && !this.offMarkerCells) {
+            this.offMarkerCells = this.opts.onCells((e) => {
+                if (e.kind !== 'created' || this.startTime === null) return;
+                this.opts.cells().find((c) => c.id === e.id)?.chart.renderer.set('replayStart', this.startTime);
+            });
+        } else if (time === null) {
+            this.offMarkerCells?.();
+            this.offMarkerCells = null;
+        }
+    }
+
+    // ── moving and pinning the bar ──
+
+    private hostSize(): { w: number; h: number } {
+        return { w: this.opts.host.clientWidth, h: this.opts.host.clientHeight };
+    }
+
+    private barSize(): { w: number; h: number } {
+        return { w: this.root.offsetWidth, h: this.root.offsetHeight };
+    }
+
+    /** Put the bar where it was dragged/pinned to (kept inside the host), or leave it to the stylesheet. */
+    private applyPlacement(): void {
+        const s = this.root.style;
+        if (!this.placement) {
+            s.left = '';
+            s.top = '';
+            s.transform = '';
+            return;
+        }
+        const { left, top } = placeBar(this.hostSize(), this.barSize(), this.placement);
+        s.left = `${Math.round(left)}px`;
+        s.top = `${Math.round(top)}px`;
+        s.transform = 'none';
+    }
+
+    private wireDrag(grip: HTMLElement): void {
+        let from: { x: number; y: number; left: number; top: number } | null = null;
+        grip.addEventListener('pointerdown', (e) => {
+            if (this.pinned) return;
+            e.preventDefault();
+            from = { x: e.clientX, y: e.clientY, left: this.root.offsetLeft, top: this.root.offsetTop };
+            try {
+                grip.setPointerCapture((e as PointerEvent).pointerId);
+            } catch {
+                /* no pointer capture (synthetic events) — the move listener still hears the grip */
+            }
+        });
+        grip.addEventListener('pointermove', (e) => {
+            if (!from) return;
+            this.placement = placementFromPixels(this.hostSize(), this.barSize(), from.left + e.clientX - from.x, from.top + e.clientY - from.y);
+            this.applyPlacement();
+        });
+        const end = (): void => {
+            from = null;
+        };
+        grip.addEventListener('pointerup', end);
+        grip.addEventListener('pointercancel', end);
+    }
+
+    private togglePin(): void {
+        this.pinned = !this.pinned;
+        this.store.save({ pinned: this.pinned, placement: this.pinned ? this.placement : null });
+        this.paintPin();
+    }
+
+    private paintPin(): void {
+        this.pinBtn.replaceChildren(iconEl(this.pinned ? 'pin-filled' : 'pin', this.doc));
+        this.pinBtn.setAttribute('aria-pressed', String(this.pinned));
+        const label = this.pinned ? 'Unpin the bar' : 'Pin the bar in place';
+        this.pinBtn.setAttribute('aria-label', label);
+        this.pinBtn.title = label;
+        if (this.pinned) this.root.dataset.pinned = '1';
+        else delete this.root.dataset.pinned;
     }
 
     // ── picking ──

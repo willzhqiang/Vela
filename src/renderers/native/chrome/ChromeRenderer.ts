@@ -17,7 +17,7 @@ import { tzOffsetMs } from './tz';
 import { countdownText } from './countdown';
 import { tagTextColor } from './contrast';
 import { CHIP_H, layoutPriceChips } from './price-chips';
-import { SESSION_POST, SESSION_PRE } from '../../../core/palette';
+import { ACCENT, SESSION_POST, SESSION_PRE } from '../../../core/palette';
 import { markGroupVisible } from '../../shared/marks-state';
 import { clusterTooltip, layoutMarkLane, markGlyphAt, markStackAt, type MarkLaneLayout, type PlacedGlyph } from './marks/layout';
 import { MarkIconRaster, paintMarkLane } from './marks/paint';
@@ -161,9 +161,26 @@ export class ChromeRenderer {
         this.drawPriceAxes(ctx, scene, coords, theme, dataW, panes);
         this.drawMergedScaleColumns(ctx, scene, coords, dataW);
         this.drawPaneSeparators(ctx, scene, theme, fullW, panes);
+        this.drawReplayStart(ctx, scene, coords, theme, dataW, dataH);
         this.drawPriceLineAndCountdown(ctx, scene, coords, theme, dataW, pricePane);
         this.drawTimeAxis(ctx, scene, coords, theme, dataW, dataH, fullH);
         this.drawMarkLane(ctx, scene, coords, theme, dataW, dataH);
+    }
+
+    /** The replay's start marker: one dashed vertical line through every pane at the bar the replay began on. */
+    private drawReplayStart(ctx: CanvasRenderingContext2D, scene: SceneGraph, coords: CoordinateSystem, _theme: VelaTheme, dataW: number, dataH: number): void {
+        if (scene.replayStart === null) return;
+        const x = coords.timeToX(scene.replayStart);
+        if (!Number.isFinite(x) || x < 0 || x > dataW) return;
+        const lx = Math.round(x) + 0.5;
+        ctx.strokeStyle = ACCENT;
+        ctx.lineWidth = 1;
+        setDash(ctx, 'dashed');
+        ctx.beginPath();
+        ctx.moveTo(lx, 0);
+        ctx.lineTo(lx, dataH);
+        ctx.stroke();
+        setDash(ctx, 'solid');
     }
 
     /** The timeline-mark lane — after the axis, so the tokens read over the plot's bottom edge. */

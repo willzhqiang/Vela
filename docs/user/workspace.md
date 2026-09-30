@@ -278,6 +278,13 @@ The shell drives `ws.replay` for you. The **Replay** button in the topbar starts
   10x, one bar every 1000, 333 and 100 ms) and how many bars are left. The replay starts
   paused. The first button of the bar moves the start to another bar; the last one exits and
   brings back the full history on every chart.
+- **The start bar stays marked.** Once the replay starts, a dashed vertical line marks the bar it
+  began on, on every chart (the `replayStart` renderer feature), until you exit.
+- **Move and pin the bar.** Drag the grip at its left edge to put the bar anywhere in the grid;
+  it goes back to the top centre for the next replay. The pin button keeps it where you put it —
+  locked against accidental drags and remembered across replays and page loads (`localStorage`
+  key `vela-replay-bar`; the `store` option of `ReplayUi` replaces it). The topbar's **Replay**
+  button lights up in the selection colours while a start is being chosen or a replay runs.
 - **Start from any chart.** The clicked chart's bar sets the shared replay time, and the other
   charts show the bars that had closed by then.
 

@@ -2,7 +2,7 @@
 // The replay UI controller: picking a start bar (guide line, veil, mirrored ghost on the other
 // charts), the floating control bar, and leaving nothing behind on exit.
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { ReplayUi, type ReplayUiCell, type ReplayUiOptions, type ReplayUiReplay } from '../src/widget/replay-ui';
+import { ReplayUi, type ReplayBarSaved, type ReplayBarStore, type ReplayUiCell, type ReplayUiOptions, type ReplayUiReplay } from '../src/widget/replay-ui';
 import type { ReplayState } from '../src/core/ReplayControl';
 import type { ClickEvent, CrosshairEvent } from '../src/core/ports/IChartRenderer';
 import type { WorkspaceReplayEventMap } from '../src/workspace/WorkspaceReplay';
@@ -107,6 +107,13 @@ class FakeReplay {
     }
 }
 
+/** A bar-position store that lives in memory, recording every save. */
+function memoryStore(initial: ReplayBarSaved = { pinned: false, placement: null }): ReplayBarStore & { saved: ReplayBarSaved[] } {
+    let value = initial;
+    const saved: ReplayBarSaved[] = [];
+    return { saved, load: () => value, save: (v) => { value = v; saved.push(v); } };
+}
+
 interface Rig {
     host: HTMLElement;
     replay: FakeReplay;
@@ -158,6 +165,7 @@ function make(cellIds: string[] = ['a'], extra: Partial<ReplayUiOptions> = {}, r
         },
         openDatePicker: () => (rig.dateOpened += 1),
         toast: (m) => rig.toasts.push(m),
+        store: memoryStore(),
         ...extra,
     });
     return rig;
@@ -451,5 +459,176 @@ describe('lifecycle', () => {
             expect(r.listeners).toBe(0);
             expect(r.ghost).toBeNull();
         }
+    });
+});
+
+const lastSet = (rig: Rig, id: string, key: string): unknown => last(rig.renderers.get(id)!.setCalls.filter(([k]) => k === key))?.[1];
+
+describe('the start marker', () => {
+    it('marks the start bar on every chart once the replay starts', async () => {
+        await rig.ui.startFromDate(5000);
+        expect(lastSet(rig, 'a', 'replayStart')).toBe(5000);
+        expect(lastSet(rig, 'b', 'replayStart')).toBe(5000);
+    });
+
+    it('moves when another start is chosen, and stays put while one is being chosen', async () => {
+        await rig.ui.startFromDate(5000);
+        rig.ui.beginPick();
+        expect(lastSet(rig, 'a', 'replayStart')).toBe(5000);
+        rig.renderers.get('a')!.click(9000);
+        await flush();
+        expect(lastSet(rig, 'a', 'replayStart')).toBe(9000);
+        expect(lastSet(rig, 'b', 'replayStart')).toBe(9000);
+    });
+
+    it('is taken down on exit', async () => {
+        await rig.ui.startFromDate(5000);
+        rig.ui.exit();
+        expect(lastSet(rig, 'a', 'replayStart')).toBeNull();
+        expect(lastSet(rig, 'b', 'replayStart')).toBeNull();
+    });
+
+    it('reaches a chart added during the replay, and is cleared from it on exit', async () => {
+        await rig.ui.startFromDate(5000);
+        rig.addCell('c');
+        expect(lastSet(rig, 'c', 'replayStart')).toBe(5000);
+        rig.ui.exit();
+        expect(lastSet(rig, 'c', 'replayStart')).toBeNull();
+    });
+
+    it('is cleared when the UI is destroyed mid-replay', async () => {
+        await rig.ui.startFromDate(5000);
+        rig.ui.destroy();
+        expect(lastSet(rig, 'a', 'replayStart')).toBeNull();
+    });
+
+    it('is not set by cancelling a pick', () => {
+        rig.ui.beginPick();
+        rig.ui.cancelPick();
+        expect(lastSet(rig, 'a', 'replayStart')).toBeUndefined();
+    });
+});
+
+/** Give the bar and its host a size (jsdom lays nothing out) and a starting spot. */
+function measure(rig: Rig, host = { w: 1000, h: 600 }, barSize = { w: 400, h: 40 }, at = { left: 300, top: 10 }): void {
+    const def = (el: HTMLElement, props: Record<string, number>): void => {
+        for (const [k, v] of Object.entries(props)) Object.defineProperty(el, k, { configurable: true, get: () => v });
+    };
+    def(rig.host, { clientWidth: host.w, clientHeight: host.h });
+    def(bar(rig), { offsetWidth: barSize.w, offsetHeight: barSize.h, offsetLeft: at.left, offsetTop: at.top });
+}
+const grip = (rig: Rig): HTMLElement => btn(rig, 'grip');
+const pointer = (el: Element, type: string, x: number, y: number): void => {
+    el.dispatchEvent(new MouseEvent(type, { clientX: x, clientY: y, bubbles: true, cancelable: true }));
+};
+const drag = (rig: Rig, from: [number, number], to: [number, number]): void => {
+    pointer(grip(rig), 'pointerdown', ...from);
+    pointer(grip(rig), 'pointermove', ...to);
+    pointer(grip(rig), 'pointerup', ...to);
+};
+
+describe('moving the bar', () => {
+    beforeEach(async () => {
+        await rig.ui.startFromDate(5000);
+        measure(rig);
+    });
+
+    it('has a grip and a pin, off the default spot until moved', () => {
+        expect(grip(rig)).toBeTruthy();
+        expect(btn(rig, 'pin').getAttribute('aria-pressed')).toBe('false');
+        expect(bar(rig).style.left).toBe('');
+    });
+
+    it('follows the grip', () => {
+        drag(rig, [500, 20], [560, 90]);
+        expect(bar(rig).style.left).toBe('360px'); // 300 + 60
+        expect(bar(rig).style.top).toBe('80px'); // 10 + 70
+        expect(bar(rig).style.transform).toBe('none');
+    });
+
+    it('stays inside its host', () => {
+        drag(rig, [500, 20], [9000, 9000]);
+        expect(bar(rig).style.left).toBe('600px');
+        expect(bar(rig).style.top).toBe('560px');
+        drag(rig, [500, 20], [-9000, -9000]);
+        expect(bar(rig).style.left).toBe('0px');
+        expect(bar(rig).style.top).toBe('0px');
+    });
+
+    it('ignores a move that never started on the grip', () => {
+        pointer(grip(rig), 'pointermove', 900, 900);
+        expect(bar(rig).style.left).toBe('');
+    });
+
+    it('goes back to its default spot for the next replay when not pinned', async () => {
+        drag(rig, [500, 20], [560, 90]);
+        rig.ui.exit();
+        await rig.ui.startFromDate(6000);
+        expect(bar(rig).style.left).toBe('');
+        expect(bar(rig).style.top).toBe('');
+    });
+});
+
+describe('pinning the bar', () => {
+    beforeEach(async () => {
+        await rig.ui.startFromDate(5000);
+        measure(rig);
+    });
+
+    it('locks it in place: the grip no longer moves it', () => {
+        btn(rig, 'pin').click();
+        expect(btn(rig, 'pin').getAttribute('aria-pressed')).toBe('true');
+        drag(rig, [500, 20], [560, 90]);
+        expect(bar(rig).style.left).toBe('');
+        expect(bar(rig).dataset.pinned).toBe('1');
+    });
+
+    it('remembers where it was put, across replays', async () => {
+        const store = memoryStore();
+        rig.ui.destroy();
+        rig = make(['a', 'b'], { store });
+        await rig.ui.startFromDate(5000);
+        measure(rig);
+        drag(rig, [500, 20], [560, 90]);
+        btn(rig, 'pin').click();
+        expect(last(store.saved)).toEqual({ pinned: true, placement: { fx: 360 / 600, fy: 80 / 560 } });
+        rig.ui.exit();
+        await rig.ui.startFromDate(6000);
+        measure(rig);
+        expect(bar(rig).style.left).not.toBe('');
+        expect(btn(rig, 'pin').getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('restores a pinned bar from storage at once, in the same spot', async () => {
+        rig.ui.destroy();
+        rig = make(['a', 'b'], { store: memoryStore({ pinned: true, placement: { fx: 0.5, fy: 1 } }) });
+        await rig.ui.startFromDate(5000);
+        measure(rig);
+        rig.ui.startFromDate(6000); // placing needs the bar's size, known once shown
+        await flush();
+        measure(rig);
+        window.dispatchEvent(new Event('resize'));
+        expect(bar(rig).style.left).toBe('300px'); // half of the 600 free
+        expect(bar(rig).style.top).toBe('560px');
+        expect(btn(rig, 'pin').getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('unpinning frees the grip and forgets the saved spot', () => {
+        const store = memoryStore({ pinned: true, placement: { fx: 0.2, fy: 0.2 } });
+        rig.ui.destroy();
+        rig = make(['a', 'b'], { store });
+        btn(rig, 'pin').click();
+        expect(btn(rig, 'pin').getAttribute('aria-pressed')).toBe('false');
+        expect(last(store.saved)).toEqual({ pinned: false, placement: null });
+    });
+
+    it('keeps the bar inside a host that got smaller', async () => {
+        rig.ui.destroy();
+        rig = make(['a', 'b'], { store: memoryStore({ pinned: true, placement: { fx: 1, fy: 1 } }) });
+        await rig.ui.startFromDate(5000);
+        measure(rig, { w: 500, h: 300 });
+        window.dispatchEvent(new Event('resize'));
+        expect(bar(rig).style.left).toBe('100px');
+        expect(bar(rig).style.top).toBe('260px');
     });
 });

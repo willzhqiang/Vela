@@ -6,6 +6,11 @@ All notable changes to Vela, newest first.
 
 ### Added
 
+- **Replay bar polish.** The topbar's Replay button is labelled and lights up in the selection
+  colours while a start is being chosen or a replay runs. A dashed vertical line keeps the bar
+  the replay started on marked on every chart (`replayStart` renderer feature). The floating
+  bar gets a grip to drag it anywhere in the grid and a pin that locks it there and remembers
+  the spot across replays and reloads.
 - **Symbol name and pre/post-market price on the last-price label.** The last price now carries
   the symbol's name in a block against the axis, and a chart showing only the regular session
   draws the latest pre-market ("Pre", orange) or after-hours ("Post", blue) price as its own
