@@ -6,6 +6,7 @@ import type { GoToDateOptions } from './core/go-to-date';
 import type { VelaOptions, VelaTheme, ThemeName, MarketSwitch, MarketSnapshot, AddIndicatorOptions } from './core/options';
 import { resolveAnimations } from './core/options';
 import type { InputValue } from './core/model/inputs';
+import type { OHLCV } from './core/model/ohlcv';
 import type { IndicatorHandle } from './core/IndicatorHandle';
 import type { EngineContextSnapshot } from './core/ports/ScriptingEngine';
 import type { NativeIndicatorInfo } from './core/native-indicators';
@@ -417,6 +418,15 @@ export class Vela {
     /** The current visible time range (`from`/`to` in epoch-ms), or null before data loads. */
     getVisibleRange(): VisibleRange | null {
         return this.orchestrator.getVisibleRange();
+    }
+
+    /**
+     * The bars the chart holds, oldest first (each `{ time, open, high, low, close, volume? }`, `time` =
+     * the bar's open in epoch-ms) — a copy, so changing it changes nothing. It is the SOURCE data, not a
+     * chart-type transform of it, and during a replay only the bars revealed so far.
+     */
+    getBars(): OHLCV[] {
+        return this.orchestrator.barsSnapshot();
     }
 
     /** Set the visible time range explicitly (epoch-ms). Use for a custom date range. */
