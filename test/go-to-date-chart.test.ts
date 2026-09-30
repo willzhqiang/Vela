@@ -196,3 +196,61 @@ describe('chart.goToDate', () => {
         expect(renderer.frames.length).toBe(n);
     });
 });
+
+describe('chart.goToRange', () => {
+    it('a range inside the loaded bars frames exactly those bars without fetching', async () => {
+        const { chart, feed, renderer } = make();
+        await chart.ready();
+        const calls = feed.rangeCalls.length;
+        await chart.goToRange(renderer.bars[30]!.time, renderer.bars[70]!.time);
+        expect(feed.rangeCalls.length).toBe(calls);
+        expect(last(renderer.frames)).toEqual({ from: renderer.bars[30]!.time, to: renderer.bars[70]!.time });
+    });
+
+    it('accepts Dates and a reversed pair', async () => {
+        const { chart, renderer } = make();
+        await chart.ready();
+        await chart.goToRange(new Date(renderer.bars[70]!.time), new Date(renderer.bars[30]!.time));
+        expect(last(renderer.frames)).toEqual({ from: renderer.bars[30]!.time, to: renderer.bars[70]!.time });
+    });
+
+    it('a start older than the loaded history deepens it first, then frames the whole range', async () => {
+        const { chart, feed, renderer } = make({ bars: 100, total: 400 });
+        await chart.ready();
+        const from = feed.all[120]!.time;
+        const to = feed.all[180]!.time;
+        await chart.goToRange(from, to);
+        await flush();
+        expect(feed.rangeCalls.length).toBeGreaterThan(0);
+        expect(renderer.bars[0]!.time).toBeLessThanOrEqual(from);
+        expect(last(renderer.frames)).toEqual({ from, to });
+    });
+
+    it('an end past the newest bar clamps to it', async () => {
+        const { chart, renderer } = make();
+        await chart.ready();
+        const newest = renderer.bars[renderer.bars.length - 1]!.time;
+        await chart.goToRange(renderer.bars[80]!.time, newest + 1000 * HOUR);
+        expect(last(renderer.frames)).toEqual({ from: renderer.bars[80]!.time, to: newest });
+    });
+
+    it('during a replay it frames only what is revealed and never deepens', async () => {
+        const { chart, feed, renderer } = make({ bars: 100, total: 400 });
+        await chart.ready();
+        await chart.replay.start({ from: renderer.bars[40]!.time });
+        const calls = feed.rangeCalls.length;
+        const shown = renderer.bars.length;
+        await chart.goToRange(feed.all[0]!.time, feed.all[399]!.time);
+        expect(feed.rangeCalls.length).toBe(calls);
+        expect(renderer.bars.length).toBe(shown);
+        expect(last(renderer.frames)).toEqual({ from: renderer.bars[0]!.time, to: renderer.bars[shown - 1]!.time });
+    });
+
+    it('a non-finite bound is ignored', async () => {
+        const { chart, renderer } = make();
+        await chart.ready();
+        const n = renderer.frames.length;
+        await chart.goToRange(NaN, renderer.bars[5]!.time);
+        expect(renderer.frames.length).toBe(n);
+    });
+});

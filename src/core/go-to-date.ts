@@ -36,6 +36,40 @@ export function frameAroundDate(bars: readonly OHLCV[], ts: number, count = DEFA
     return { from: bars[start]!.time, to: bars[start + size - 1]!.time };
 }
 
+/** First index whose bar opens at or after `ts` (`bars.length` when none does). */
+function lowerBound(bars: readonly OHLCV[], ts: number): number {
+    let lo = 0;
+    let hi = bars.length;
+    while (lo < hi) {
+        const mid = (lo + hi) >>> 1;
+        if (bars[mid]!.time < ts) lo = mid + 1;
+        else hi = mid;
+    }
+    return lo;
+}
+
+/**
+ * The visible range that shows the bars between two instants, both ends included: from the
+ * first bar at-or-after the earlier one to the last bar at-or-before the later one (a
+ * reversed pair is swapped). Bars are the only thing a view can show, so an end that lies
+ * outside the history clamps to the oldest or newest bar. A range holding a single bar is
+ * widened to two so the view is never a sliver, and one holding none frames the first bars
+ * after it (or the last two, past the end).
+ */
+export function frameRange(bars: readonly OHLCV[], from: number, to: number): VisibleRange | null {
+    const n = bars.length;
+    if (n === 0 || !Number.isFinite(from) || !Number.isFinite(to)) return null;
+    const lo = Math.min(from, to);
+    const hi = Math.max(from, to);
+    const first = lowerBound(bars, lo);
+    if (first >= n) return { from: bars[Math.max(0, n - 2)]!.time, to: bars[n - 1]!.time };
+    const last = lowerBound(bars, hi + 1) - 1; // last bar opening at or before `hi`
+    if (last > first) return { from: bars[first]!.time, to: bars[last]!.time };
+    // Nothing (or one bar) inside: two bars starting at the first one at-or-after `lo`.
+    const start = first + 1 < n ? first : Math.max(0, first - 1);
+    return { from: bars[start]!.time, to: bars[Math.min(n - 1, start + 1)]!.time };
+}
+
 /**
  * How many bars a deepening request needs to reach back to `ts`, estimated from the density
  * of the bars already loaded (which captures session gaps, unlike bars-per-calendar-interval),
@@ -75,7 +109,8 @@ export function zonedWallToEpoch(y: number, m: number, d: number, h: number, mi:
     return t;
 }
 
-function wallParts(ts: number, zone: string): { y: number; m: number; d: number; h: number; mi: number } {
+/** The wall-clock fields of instant `ts` in IANA `zone`. */
+export function zonedWallParts(ts: number, zone: string): { y: number; m: number; d: number; h: number; mi: number } {
     const parts = new Intl.DateTimeFormat('en-US', {
         timeZone: zone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
     }).formatToParts(new Date(ts));
@@ -94,7 +129,7 @@ const pad = (n: number): string => String(n).padStart(2, '0');
 export function parseGoToDate(input: string, zone: string, now: number = Date.now()): ParsedGoTo | null {
     const raw = input.trim().toLowerCase();
     if (!raw) return null;
-    const today = wallParts(now, zone);
+    const today = zonedWallParts(now, zone);
     let y: number;
     let m: number;
     let d: number;
@@ -103,7 +138,7 @@ export function parseGoToDate(input: string, zone: string, now: number = Date.no
     let hasTime = false;
 
     if (raw === 'today' || raw === 'yesterday') {
-        const base = wallParts(now - (raw === 'yesterday' ? 86_400_000 : 0), zone);
+        const base = zonedWallParts(now - (raw === 'yesterday' ? 86_400_000 : 0), zone);
         ({ y, m, d } = base);
     } else {
         const full = /^(\d{4})[-/.]?(\d{1,2})[-/.]?(\d{1,2})(?:[ t]+(\d{1,2}):(\d{2}))?$/.exec(raw);
@@ -122,7 +157,7 @@ export function parseGoToDate(input: string, zone: string, now: number = Date.no
     }
     if (m < 1 || m > 12 || d < 1 || d > 31 || h > 23 || mi > 59) return null;
     const ts = zonedWallToEpoch(y, m, d, h, mi, zone);
-    const back = wallParts(ts, zone);                // round-trip rejects 02-30 → 03-02 style rollovers
+    const back = zonedWallParts(ts, zone);                // round-trip rejects 02-30 → 03-02 style rollovers
     if (back.y !== y || back.m !== m || back.d !== d) return null;
     return { ts, label: `${y}-${pad(m)}-${pad(d)}${hasTime ? ` ${pad(h)}:${pad(mi)}` : ''} (${zone})` };
 }
