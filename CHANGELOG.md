@@ -6,6 +6,14 @@ All notable changes to Vela, newest first.
 
 ### Added
 
+- **Saved layouts.** The new `layouts` option takes a `LayoutStore` (where layouts live) and
+  adds a topbar button with the current layout's name and a *Manage layouts* menu: Save layout,
+  an Autosave switch, Make a copy…, Rename…, Download chart data… (CSV of the loaded bars),
+  Create new layout…, the four most recently used layouts, and Open layout… for a searchable,
+  sortable *Layouts* dialog with delete. A layout is the whole workspace state — symbols,
+  timeframes, indicators, drawings, panels — and the last one used opens on start. New
+  `chart.getBars()` returns the loaded bars; `'layouts'` joins the `topbar` entries (default:
+  first on the right).
 - **Replay controls in the workspace.** A Replay button in the topbar
   starts a replay without any code: a dashed line follows the pointer to the bar under it
   with everything to its right veiled — mirrored on the other charts of a multi-chart layout —

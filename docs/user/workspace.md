@@ -292,6 +292,52 @@ timeframes), and `lastOpenClosedBy(time, timeframe)` is the last bar open a char
 given replay time — for example, the spot for a ghost crosshair
 (`renderer.setExternalCrosshair`) marking where each chart would be cut.
 
+## Saved layouts
+
+A **layout** is the whole state document (`ws.getState()`): the grid, every chart's symbol,
+timeframe, style, indicators and drawings, the panels. Give the workspace a place to keep
+them with the `layouts` option and the topbar gets a button showing the current layout's name
+(a dot after it while the chart differs from what was saved):
+
+```ts
+new VelaWorkspace('#app', { layouts: myStore }); // a LayoutStore — see below
+```
+
+The button opens the **Manage layouts** menu:
+
+| Row | Does |
+|---|---|
+| Save layout | Writes the chart to the current layout (an unsaved chart asks for a name first). |
+| Autosave | Switch. On (the default), edits are saved about 1.5 s after the last change, and on leaving the page. Off, the chart is only saved by *Save layout*, and leaving a layout with unsaved changes asks first. Kept per browser. |
+| Make a copy… / Rename… | Save what is on screen under a new name and switch to it / rename the current layout. |
+| Download chart data… | The active chart's loaded bars as a CSV (`time,open,high,low,close,volume`, ISO-8601 UTC times) — [`chart.getBars()`](./api-reference.md#core-methods). |
+| Create new layout… | A fresh layout from the defaults the chart started with. |
+| Recently used | The four most recently opened layouts, two lines each (name, then `SYMBOL, timeframe`); the current one is highlighted. |
+| Open layout… | The **Layouts** dialog: every layout, searchable (name, symbol, timeframe), sortable by name, each row showing when it was last saved; a trash button on hover deletes after a confirmation. |
+
+On start the most recently used layout is opened. Applying a layout restores indicators and
+deepens history over a moment; changes made *by that restore* do not count as unsaved edits.
+A store call that fails shows a toast and leaves the chart as it is.
+
+### The `LayoutStore` interface
+
+The workspace never assumes where layouts live — a REST API, files, IndexedDB:
+
+```ts
+interface LayoutStore {
+    list(): Promise<LayoutSummary[]>; // { id, name, saved, opened, symbol, timeframe }
+    load(id: string): Promise<LayoutRecord>; // the summary + `state`
+    create(name: string, state: unknown): Promise<LayoutRecord>;
+    save(id: string, state: unknown, name?: string): Promise<LayoutRecord>;
+    rename(id: string, name: string): Promise<LayoutSummary>;
+    touch(id: string): Promise<void>; // "opened just now" — orders Recently used
+    remove(id: string): Promise<void>;
+}
+```
+
+The ids are the store's to make. `LayoutsController` (exported from `@luxalgo/vela/workspace`)
+is the state machine behind the menu, usable with your own UI.
+
 ## State & persistence
 
 The state SURFACE is the product; persistence is an adapter on top of it.
@@ -556,7 +602,7 @@ option is pure opt-in, and a shell without it behaves exactly as before.
 ```ts
 new VelaWorkspace('#chart', {
     topbar: {
-        // right undeclared ⇒ default right side (actions, alerts, panels, screenshot)
+        // right undeclared ⇒ default right side (layouts, actions, alerts, panels, screenshot)
         left: ['symbol', 'timeframes', 'style', 'my-plugin.indicator-menu.open', 'undo-redo'],
     },
 });

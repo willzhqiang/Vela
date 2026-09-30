@@ -27,3 +27,6 @@ export { syncTargets, rangesWithin } from './sync';
 export type { SyncKind, SyncSetting, SyncOptions } from './sync';
 export { encodeState, decodeState, sanitizeState, memoryStorageAdapter } from './persist';
 export type { WorkspaceState, CellState, ChartState, PanelsState, WorkspaceStorage } from './persist';
+export { LayoutsController } from './LayoutsController';
+export type { LayoutsControllerOptions, LayoutsHost } from './LayoutsController';
+export type { LayoutStore, LayoutSummary, LayoutRecord, LayoutsStatus } from '../widget/layouts-model';

@@ -58,6 +58,10 @@ import { parseSymbol } from '../data/ProviderRegistry';
 import { syncTargets, rangesWithin, styleConfigSlice, SYNC_KINDS, type SyncKind, type SyncOptions, type SyncSetting } from './sync';
 import { encodeState, decodeState, sanitizeState, type WorkspaceState, type WorkspaceStorage } from './persist';
 import { localStorageAdapter } from '../widget/persist';
+import { LayoutsController } from './LayoutsController';
+import { LayoutsMenu } from '../widget/layouts-menu';
+import type { LayoutStore } from '../widget/layouts-model';
+import { barsToCsv, csvFileName } from '../widget/chart-data-csv';
 import { ChartCell, seedDefaults, cellChartDefaults, type CellSeed, type CellBoot, type PooledCellState } from './ChartCell';
 import { buildContext, type WorkspaceWidgetContext } from './context';
 import { WorkspaceReplay } from './WorkspaceReplay';
@@ -123,6 +127,15 @@ export interface VelaWorkspaceOptions extends Omit<VelaOptions, 'height'>, VelaS
     maxWebglCells?: number;
     /** How many alerts the topbar bell keeps (the oldest drop beyond it). Default 50. */
     alertCap?: number;
+    /**
+     * Where saved chart layouts live (see {@link LayoutStore}). Given one, the topbar gets a
+     * layouts button (current name, "Manage layouts" menu: save, autosave, copy, rename,
+     * download chart data, new layout, recently used, the full list) and the workspace opens
+     * the most recently used layout on start. The layout is the whole state document
+     * (`getState()`): symbols, timeframes, indicators, drawings, panels. Absent = no layouts.
+     * Autosave is a per-browser preference (localStorage `vela-layouts-autosave`).
+     */
+    layouts?: LayoutStore;
 }
 
 /** A cell's {@link ScriptRun}, tagged with the cell it ran in. */
@@ -308,6 +321,14 @@ export class VelaWorkspace {
     private readonly goToDateDialog: GoToDialog;
     private readonly replayDateDialog: GoToDialog;
     private replayUi!: ReplayUi;
+    private layoutsCtl: LayoutsController | null = null;
+    private layoutsMenu: LayoutsMenu | null = null;
+    private layoutsUnsub: (() => void) | null = null;
+    /** Closing the tab writes what autosave has not yet: the pending edit is pushed out, then saved. */
+    private readonly onLayoutsPageHide = (): void => {
+        this.flushPendingState();
+        void this.layoutsCtl?.flush();
+    };
     private shortcutsHelp: ShortcutsHelp | null = null;
     private readonly toastHost: Toast;
     private readonly glider = new Glider(() => (this.activeId ? (this.cellsById.get(this.activeId)?.chart ?? null) : null));
@@ -538,6 +559,7 @@ export class VelaWorkspace {
             onScreenshotClick: () => this.downloadScreenshot(),
             onReplayClick: () => this.replayUi.toggle(),
             onAlertsClick: (anchor) => this.openAlertsMenu(anchor),
+            ...(opts.layouts ? { onLayoutsClick: (anchor: HTMLElement) => this.layoutsMenu?.toggle(anchor) } : {}),
             timeframe: '60',
             timeframes: opts.timeframes ?? DEFAULT_TIMEFRAMES,
             timeframeFavorites: this.tfFavs,
@@ -644,6 +666,8 @@ export class VelaWorkspace {
             toast: (message, kind) => this.toast(message, kind),
             onChange: (s) => this.topbar?.setReplayActive(s.phase !== 'idle'),
         });
+
+        if (opts.layouts) this.initLayouts(opts.layouts);
 
         // ONE attribution mark for the whole grid (bottom-left, floating above the
         // bottom-left cell's time axis) — the cells disable their per-chart marks, and
@@ -822,6 +846,63 @@ export class VelaWorkspace {
         // Built. From here a dirty mark means the USER changed something, and a teardown
         // is allowed to flush it; everything above was setup (see {@link booted}).
         this.booted = true;
+        if (this.layoutsCtl) void this.layoutsCtl.bootstrap();
+    }
+
+    // ── layouts ─────────────────────────────────────────────────
+    /** The layouts controller/menu/topbar label, once `layouts` is given. */
+    private initLayouts(store: LayoutStore): void {
+        const AUTOSAVE_KEY = 'vela-layouts-autosave';
+        let autosave = true;
+        try {
+            autosave = window.localStorage.getItem(AUTOSAVE_KEY) !== 'off';
+        } catch {
+            /* storage blocked — the default stands */
+        }
+        const ctl = new LayoutsController({
+            store,
+            host: {
+                getState: () => this.getState(),
+                applyState: (state) => this.applyState(state),
+                onStateChanged: (fn) => this.events.on('state:changed', fn),
+            },
+            autosave,
+            onAutosaveChange: (on) => {
+                try {
+                    window.localStorage.setItem(AUTOSAVE_KEY, on ? 'on' : 'off');
+                } catch {
+                    /* not persisted — this session still follows the switch */
+                }
+            },
+            onError: (message) => this.toast(message, 'error', 6000),
+        });
+        this.layoutsCtl = ctl;
+        if (typeof window !== 'undefined') window.addEventListener('pagehide', this.onLayoutsPageHide);
+        this.layoutsMenu = new LayoutsMenu({
+            host: this.root,
+            actions: ctl,
+            zone: () => this.active.displayTimezone,
+            onDownload: () => this.downloadChartData(),
+            onOpenChange: (open) => this.trackDialog(open),
+        });
+        this.layoutsUnsub = ctl.subscribe((s) => this.topbar.setLayoutsState({ name: s.current?.name ?? 'Unnamed', dirty: s.dirty }));
+    }
+
+    /** Download the active chart's loaded bars as CSV. */
+    downloadChartData(): void {
+        const cell = this.active;
+        const bars = cell.chart.getBars();
+        if (bars.length === 0) {
+            this.toast('No chart data loaded yet', 'info');
+            return;
+        }
+        const doc = this.root.ownerDocument;
+        const url = URL.createObjectURL(new Blob([barsToCsv(bars)], { type: 'text/csv;charset=utf-8' }));
+        const a = doc.createElement('a');
+        a.href = url;
+        a.download = csvFileName(cell.symbol, cell.timeframe);
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
 
     // ── access ──────────────────────────────────────────────────
@@ -1328,6 +1409,7 @@ export class VelaWorkspace {
     destroy(): void {
         if (this.destroyed) return;
         this.flushPendingState(); // the user's last edit, before anything is torn down
+        void this.layoutsCtl?.flush(); // ...and its autosave, while the state can still be read
         this.destroyed = true;
         this.replay.destroy();
         if (this.persistKey !== null && typeof window !== 'undefined') window.removeEventListener('beforeunload', this.onUnload);
@@ -1380,6 +1462,10 @@ export class VelaWorkspace {
         this.indicatorPicker?.destroy();
         this.tfQuick.destroy();
         this.goToDateDialog.destroy();
+        if (typeof window !== 'undefined') window.removeEventListener('pagehide', this.onLayoutsPageHide);
+        this.layoutsUnsub?.();
+        this.layoutsMenu?.destroy();
+        this.layoutsCtl?.destroy();
         this.replayUi.destroy();
         this.replayDateDialog.destroy();
         this.shortcutsHelp?.destroy();

@@ -26,7 +26,7 @@ const CSS = `
     font-size: var(--vela-font-size-md);
     flex: none;
 }
-.vela-widget-symbol, .vela-widget-tf, .vela-widget-style, .vela-widget-indicators, .vela-widget-action-left {
+.vela-widget-symbol, .vela-widget-tf, .vela-widget-style, .vela-widget-indicators, .vela-widget-layouts, .vela-widget-action-left {
     all: unset;
     display: inline-flex;
     align-items: center;
@@ -48,10 +48,16 @@ const CSS = `
     padding: 0 10px;
     gap: 7px;
 }
-.vela-widget-tf, .vela-widget-style, .vela-widget-indicators, .vela-widget-action-left {
+.vela-widget-tf, .vela-widget-style, .vela-widget-indicators, .vela-widget-layouts, .vela-widget-action-left {
     color: var(--vela-fg-bright);
 }
-.vela-widget-symbol:hover, .vela-widget-tf:hover, .vela-widget-style:hover, .vela-widget-indicators:hover, .vela-widget-action-left:hover { background: var(--vela-hover); color: var(--vela-fg-bright); }
+/* The layouts button: the layout's name (ellipsized), a dot while it has unsaved changes, a chevron. */
+.vela-widget-layouts { max-width: 220px; }
+.vela-widget-layouts-name { overflow: hidden; text-overflow: ellipsis; }
+.vela-widget-layouts[data-dirty='1'] .vela-widget-layouts-name::after { content: ' •'; color: var(--vela-fg-muted); }
+.vela-widget-layouts .vela-icon { flex: none; color: var(--vela-fg-muted); }
+.vela-widget-layouts[aria-expanded='true'] { background: var(--vela-hover); }
+.vela-widget-symbol:hover, .vela-widget-tf:hover, .vela-widget-style:hover, .vela-widget-indicators:hover, .vela-widget-layouts:hover, .vela-widget-action-left:hover { background: var(--vela-hover); color: var(--vela-fg-bright); }
 /* Timeframe cluster: duration-sorted favorite chips, highlight in place, caret
    opening the full dropdown. With no favorites the caret is the merged trigger
    (label + chevron). An unstarred current value sits as an extra chip by the caret. */
@@ -207,6 +213,8 @@ export interface TopbarOptions {
     /** Toggles bar replay (choose a start / exit). No callback ⇒ no button. The pressed state is pushed with {@link Topbar.setReplayActive}. */
     onReplayClick?: () => void;
     onAlertsClick?: (anchor: HTMLElement) => void;
+    /** Opens the layouts menu under the button (`anchor`). No callback ⇒ no button. Name and unsaved marker are pushed with {@link Topbar.setLayoutsState}. */
+    onLayoutsClick?: (anchor: HTMLElement) => void;
     /** Live widget context for contributed actions (topbar target). */
     getContext?: () => WidgetContext;
     /** The host's declarative composition (see {@link TopbarComposition}) — which
@@ -241,6 +249,8 @@ export class Topbar {
     private redoBtn!: HTMLButtonElement;
     private alertsBtn!: HTMLButtonElement;
     private replayBtn!: HTMLButtonElement;
+    private layoutsBtn: HTMLButtonElement | null = null;
+    private layoutsName: HTMLElement | null = null;
     private panelBtns = new Map<string, HTMLButtonElement>();
     private panelTooltips: Tooltip[] = [];
     private readonly host: HTMLElement;
@@ -343,6 +353,19 @@ export class Topbar {
         // Same detached-bare-button rule as the tools above, so setReplayActive stays a safe no-op.
         const replayBtn = vis('replay') && opts.onReplayClick ? tool('vela-widget-replay', 'replay', 'Bar replay', opts.onReplayClick) : null;
         this.replayBtn = replayBtn ?? doc.createElement('button');
+        if (vis('layouts') && opts.onLayoutsClick) {
+            const b = doc.createElement('button');
+            b.className = 'vela-widget-layouts';
+            b.setAttribute('aria-haspopup', 'menu');
+            b.setAttribute('aria-expanded', 'false');
+            this.layoutsName = doc.createElement('span');
+            this.layoutsName.className = 'vela-widget-layouts-name';
+            b.append(this.layoutsName, iconEl('chevron-down', doc));
+            b.addEventListener('click', () => opts.onLayoutsClick!(b));
+            this.tooltips.push(new Tooltip(b, { content: 'Manage layouts', triggerId: 'vela-tool-vela-widget-layouts', host: this.host }));
+            this.layoutsBtn = b;
+            this.setLayoutsState({ name: 'Unnamed', dirty: false });
+        }
         this.alertsBtn = vis('alerts') ? tool('vela-widget-alerts', 'bell', 'Alerts') : doc.createElement('button');
         this.alertsBtn.style.position = 'relative';
         if (opts.onAlertsClick) this.alertsBtn.addEventListener('click', () => opts.onAlertsClick!(this.alertsBtn));
@@ -409,6 +432,8 @@ export class Topbar {
                     return overridden(id, left) ?? (indicatorsBtn ? [indicatorsBtn] : []);
                 case 'replay':
                     return replayBtn ? [replayBtn] : [];
+                case 'layouts':
+                    return this.layoutsBtn ? [this.layoutsBtn] : [];
                 case 'actions':
                     return left ? [this.leftActionsHost, this.leftActionsSep] : [this.actionsHost];
                 case 'undo-redo':
@@ -653,6 +678,15 @@ export class Topbar {
             this.panelBtns.set(b.id, el);
             this.panelsHost.appendChild(el);
         }
+    }
+
+    /** The layouts button's label: the current layout's name, and whether it has unsaved changes. */
+    setLayoutsState(state: { name: string; dirty: boolean }): void {
+        if (!this.layoutsBtn || !this.layoutsName) return;
+        this.layoutsName.textContent = state.name;
+        if (state.dirty) this.layoutsBtn.dataset.dirty = '1';
+        else delete this.layoutsBtn.dataset.dirty;
+        this.layoutsBtn.setAttribute('aria-label', `Manage layouts — ${state.name}${state.dirty ? ' (unsaved changes)' : ''}`);
     }
 
     /** Reflect bar replay on its button: pressed while a start is being chosen or a replay runs. */

@@ -2056,6 +2056,11 @@ export class EngineOrchestrator implements IndicatorController, PaneController, 
         return this.renderer.getVisibleRange();
     }
 
+    /** A copy of the loaded source bars, oldest first — the history up to the cursor during a replay. */
+    barsSnapshot(): OHLCV[] {
+        return this.rawBars.map((b) => ({ ...b }));
+    }
+
     /** Set the visible time range explicitly (epoch-ms `from`/`to`). */
     setVisibleRange(range: VisibleRange): void {
         this.renderer.setVisibleRange(range);
