@@ -44,6 +44,10 @@ All notable changes to Vela, newest first.
 
 ### Fixed
 
+- **Indicator titles stay readable in a squeezed pane.** The wash behind an indicator's title and
+  values is nearly solid in an indicator pane (it was 60% everywhere), so reference lines no
+  longer strike through the text when the pane is short; the price pane keeps the light wash so
+  candles show through.
 - **A chart zoomed in to a few bars no longer goes blank when its bars are replaced.** After a
   symbol or timeframe switch, or a replay starting further back, a chart showing fewer bars
   than its right margin held its newest candles outside the view and drew nothing. It now
