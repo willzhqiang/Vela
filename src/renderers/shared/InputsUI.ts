@@ -99,6 +99,17 @@ const LEGEND_ICON_PX = 16;
 /** Equal hit target for every legend-row action (eye / gear / move / extras / ✕). Compact
  *  enough to sit on the title's line box so revealing the cluster does not grow the chip. */
 const LEGEND_CTL_PX = 18;
+/** Idle legend-row wash over the chart background. The price pane keeps it light so candles show through;
+ *  an indicator pane has nothing to show through it but reference lines and plots, which would otherwise strike
+ *  through the title and values when the pane is squeezed — so its wash is nearly solid. */
+export const LEGEND_FILL_ALPHA_PRICE = 0.6;
+export const LEGEND_FILL_ALPHA_STUDY = 0.9;
+
+/** The idle fill of a legend row in `paneId` (`'price'` or a study pane's id). */
+export function legendRowFill(background: string, paneId: string): string {
+    return withAlpha(background, paneId === 'price' ? LEGEND_FILL_ALPHA_PRICE : LEGEND_FILL_ALPHA_STUDY);
+}
+
 const LEGEND_ROW_PAD_Y = 2;
 const LEGEND_ROW_PAD_X = 6;
 /** Space between the indicator title and the plot-values readout to its right. */
@@ -305,7 +316,7 @@ export class InputsUI {
         // when open) — repaint them, or a `layout.background` edit leaves stale chips
         // floating over the plot. "Open" is what setRowHighlighted made visible.
         for (const row of this.rows.values()) {
-            row.el.style.background = row.highlighted ? theme.background : this.idleRowFill();
+            row.el.style.background = row.highlighted ? theme.background : this.idleRowFill(row.paneId);
             row.el.style.color = theme.textColor;
         }
         if (this.foldToggle) this.syncFoldToggle(); // rebuild so fill + ink follow the new theme
@@ -549,6 +560,7 @@ export class InputsUI {
         if (!row || row.paneId === paneId) return;
         const prev = row.paneId;
         row.paneId = paneId;
+        if (!row.highlighted) row.el.style.background = this.idleRowFill(paneId);
         this.attach(this.legendFor(paneId), row.el, row.native);
         this.syncFoldToggle(); // a moved row must follow the fold state in its new pane
         if (prev !== 'price') {
@@ -699,6 +711,7 @@ export class InputsUI {
             existing.titleEl.textContent = title;
             if (existing.paneId !== paneId) { // re-routed to a different pane
                 existing.paneId = paneId;
+                if (!existing.highlighted) existing.el.style.background = this.idleRowFill(paneId);
                 this.attach(this.legendFor(paneId), existing.el, existing.native);
                 this.syncFoldToggle(); // a re-routed row must follow the fold state in its new pane
             }
@@ -719,7 +732,7 @@ export class InputsUI {
         // vertically (which would shove the rows below).
         el.style.cssText =
             `pointer-events:auto;display:flex;align-items:center;` +
-            `background:${this.idleRowFill()};border-radius:4px;` +
+            `background:${this.idleRowFill(paneId)};border-radius:4px;` +
             `padding:${LEGEND_ROW_PAD_Y}px ${LEGEND_ROW_PAD_X}px;margin-left:-${LEGEND_ROW_PAD_X}px;` +
             `min-height:${LEGEND_ROW_MIN_H}px;box-sizing:border-box;` +
             `color:${this.theme.textColor};user-select:none;-webkit-user-select:none;`;
@@ -961,7 +974,7 @@ export class InputsUI {
         row.el.style.boxShadow = highlighted ? `inset 0 0 0 1px ${this.neutralBorder()}` : 'none';
         // The solid fill exists only while the row is open — an idle row is a translucent
         // title-sized chip that lets the plot show through while keeping the label legible.
-        row.el.style.background = highlighted ? this.theme.background : this.idleRowFill();
+        row.el.style.background = highlighted ? this.theme.background : this.idleRowFill(row.paneId);
         this.syncRowActions(row);
     }
 
@@ -1059,8 +1072,8 @@ export class InputsUI {
 
     /** Idle legend-row fill — a translucent wash of the chart background, so the title keeps
      *  contrast when candles reach it without laying a solid block over the plot. */
-    private idleRowFill(): string {
-        return withAlpha(this.theme.background, 0.6);
+    private idleRowFill(paneId: string): string {
+        return legendRowFill(this.theme.background, paneId);
     }
 
     /** Neutral field/separator border — the shared chrome border token. */
