@@ -657,6 +657,16 @@ describe('the start marker across timeframes', () => {
         r.ui.destroy();
     });
 
+    it('uses each chart\'s own start bar when it reports one (session-anchored bars are not on a clock grid)', async () => {
+        const r = mixed({ h1: '60', d: 'D' });
+        const own: Record<string, number> = { h1: 123_000, d: 456_000 };
+        for (const c of r.cells) (c.chart as { replay?: unknown }).replay = { state: { cursorTime: own[c.id]! } };
+        await r.ui.startFromDate(10 * 24 * 24 * H);
+        expect(lastSet(r, 'h1', 'replayStart')).toBe(123_000);
+        expect(lastSet(r, 'd', 'replayStart')).toBe(456_000);
+        r.ui.destroy();
+    });
+
     it('a chart added mid-replay is marked the same way', async () => {
         const r = mixed({ h1: '60' });
         const T = 10 * 24 * 24 * H;

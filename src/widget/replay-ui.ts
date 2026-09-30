@@ -77,6 +77,8 @@ export interface ReplayUiCell {
         readonly renderer: ReplayUiRenderer;
         /** The chart's market — its timeframe places the start marker on the bar this chart keeps at the start. */
         readonly market?: { readonly timeframe?: string };
+        /** The chart's own replay: right after the start its cursor IS the start bar, exactly. */
+        readonly replay?: { readonly state: { readonly cursorTime: number | null } };
     };
 }
 
@@ -389,8 +391,11 @@ export class ReplayUi {
     // ── the start marker ──
 
     /** The bar `cell` keeps at the start: on the shared clock, the last of ITS bars that had closed. */
-    private markerFor(cell: ReplayUiCell): number | null {
-        return this.startClock === null ? null : lastOpenClosedBy(this.startClock, cell.chart.market?.timeframe);
+    private markerFor(cell: ReplayUiCell, exact = false): number | null {
+        if (this.startClock === null) return null;
+        // Right after the start every chart's cursor is its start bar; a chart that joined later is placed from the clock
+        // (always inside the right bar — the clock minus one bar is not necessarily the bar's own open time).
+        return (exact ? cell.chart.replay?.state.cursorTime : null) ?? lastOpenClosedBy(this.startClock, cell.chart.market?.timeframe);
     }
 
     /**
@@ -402,7 +407,7 @@ export class ReplayUi {
     private setStartMarker(cursorTime: number | null): void {
         const active = this.opts.cells().find((c) => c.id === this.opts.activeId()) ?? this.opts.cells()[0];
         this.startClock = cursorTime === null ? null : barClose(cursorTime, active?.chart.market?.timeframe);
-        for (const c of this.opts.cells()) c.chart.renderer.set('replayStart', this.markerFor(c));
+        for (const c of this.opts.cells()) c.chart.renderer.set('replayStart', this.markerFor(c, true));
         if (cursorTime !== null && !this.offMarkerCells) {
             this.offMarkerCells = this.opts.onCells((e) => {
                 if (e.kind !== 'created' || this.startClock === null) return;
