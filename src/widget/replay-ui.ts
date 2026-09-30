@@ -7,7 +7,7 @@
 // same time. A click on a bar starts the replay there, paused.
 import type { RendererControl } from '../core/RendererControl';
 import { ACCENT } from '../core/palette';
-import type { WorkspaceReplay } from '../workspace/WorkspaceReplay';
+import { barClose, lastOpenClosedBy, type WorkspaceReplay } from '../workspace/WorkspaceReplay';
 import { iconEl } from '../ui/icons';
 import { injectStyles } from '../ui/styles';
 import { ReplayUiModel, REPLAY_SPEEDS, placeBar, placementFromPixels, sanitizePlacement, type BarPlacement, type ReplaySpeed, type ReplayUiPhase, type ReplayUiSnapshot } from './replay-ui-model';
@@ -73,7 +73,11 @@ export type ReplayUiRenderer = Pick<RendererControl, 'get' | 'set' | 'onClick' |
 
 export interface ReplayUiCell {
     readonly id: string;
-    readonly chart: { readonly renderer: ReplayUiRenderer };
+    readonly chart: {
+        readonly renderer: ReplayUiRenderer;
+        /** The chart's market — its timeframe places the start marker on the bar this chart keeps at the start. */
+        readonly market?: { readonly timeframe?: string };
+    };
 }
 
 /** The verbs of a workspace replay the UI calls. */
@@ -159,8 +163,8 @@ export class ReplayUi {
     private pinned: boolean;
     /** Where the bar was dragged to; null ⇒ its default spot (top centre). */
     private placement: BarPlacement | null;
-    /** The bar the replay started on, marked on every chart while set. */
-    private startTime: number | null = null;
+    /** The shared replay time the replay started at (a bar close), marked on every chart while set. */
+    private startClock: number | null = null;
     private offMarkerCells: (() => void) | null = null;
     private readonly onResize = (): void => this.applyPlacement();
 
@@ -384,16 +388,28 @@ export class ReplayUi {
 
     // ── the start marker ──
 
-    /** Mark (or, with null, unmark) the bar the replay began on, on every chart — charts added later included. */
-    private setStartMarker(time: number | null): void {
-        this.startTime = time;
-        for (const c of this.opts.cells()) c.chart.renderer.set('replayStart', time);
-        if (time !== null && !this.offMarkerCells) {
+    /** The bar `cell` keeps at the start: on the shared clock, the last of ITS bars that had closed. */
+    private markerFor(cell: ReplayUiCell): number | null {
+        return this.startClock === null ? null : lastOpenClosedBy(this.startClock, cell.chart.market?.timeframe);
+    }
+
+    /**
+     * Mark (or, with null, unmark) where the replay began, on every chart — charts added later
+     * included. `cursorTime` is the ACTIVE chart's newest bar at the start; the shared clock is its
+     * close, and each chart marks the last of its own bars closed by then (a coarser chart has
+     * not revealed the bar that merely contains the start, so its marker is a bar earlier).
+     */
+    private setStartMarker(cursorTime: number | null): void {
+        const active = this.opts.cells().find((c) => c.id === this.opts.activeId()) ?? this.opts.cells()[0];
+        this.startClock = cursorTime === null ? null : barClose(cursorTime, active?.chart.market?.timeframe);
+        for (const c of this.opts.cells()) c.chart.renderer.set('replayStart', this.markerFor(c));
+        if (cursorTime !== null && !this.offMarkerCells) {
             this.offMarkerCells = this.opts.onCells((e) => {
-                if (e.kind !== 'created' || this.startTime === null) return;
-                this.opts.cells().find((c) => c.id === e.id)?.chart.renderer.set('replayStart', this.startTime);
+                if (e.kind !== 'created' || this.startClock === null) return;
+                const cell = this.opts.cells().find((c) => c.id === e.id);
+                if (cell) cell.chart.renderer.set('replayStart', this.markerFor(cell));
             });
-        } else if (time === null) {
+        } else if (cursorTime === null) {
             this.offMarkerCells?.();
             this.offMarkerCells = null;
         }
