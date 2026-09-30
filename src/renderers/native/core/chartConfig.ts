@@ -238,6 +238,12 @@ export interface ChartConfig {
         labelsVisible: boolean;
         currentPriceLine: boolean;
         priceLabel: boolean;
+        /** The symbol's name in a block beside the last-price label. */
+        symbolLabel: boolean;
+        /** The pre/post-market price label (only while the chart shows the regular session and the host supplies the print). */
+        extendedLabel: boolean;
+        /** The dotted line at that pre/post-market price. */
+        extendedLine: boolean;
         countdown: boolean;
         /** Glide the forming bar (and the last-price line/label) toward each live tick
          *  instead of snapping. The duration comes from `animations.liveBar` / the
@@ -690,6 +696,9 @@ export function mergeConfig(base: ChartConfig, patch: unknown): ChartConfig {
             labelsVisible: isBool(ps.labelsVisible) ? ps.labelsVisible : base.priceScale.labelsVisible,
             currentPriceLine: isBool(ps.currentPriceLine) ? ps.currentPriceLine : base.priceScale.currentPriceLine,
             priceLabel: isBool(ps.priceLabel) ? ps.priceLabel : base.priceScale.priceLabel,
+            symbolLabel: isBool(ps.symbolLabel) ? ps.symbolLabel : base.priceScale.symbolLabel,
+            extendedLabel: isBool(ps.extendedLabel) ? ps.extendedLabel : base.priceScale.extendedLabel,
+            extendedLine: isBool(ps.extendedLine) ? ps.extendedLine : base.priceScale.extendedLine,
             countdown: isBool(ps.countdown) ? ps.countdown : base.priceScale.countdown,
             animateLastPrice: isBool(ps.animateLastPrice) ? ps.animateLastPrice : base.priceScale.animateLastPrice,
         },

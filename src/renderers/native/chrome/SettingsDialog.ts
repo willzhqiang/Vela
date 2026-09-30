@@ -629,6 +629,9 @@ export class SettingsDialog {
         body.append(sid(this.separator(), 'scales.price-scale'));
         body.append(sid(this.boolRow('Last Price Line', config.priceScale.currentPriceLine, (v) => this.emit({ priceScale: { currentPriceLine: v } })), 'scales.price-scale.last-price-line'));
         body.append(sid(this.boolRow('Last price label', config.priceScale.priceLabel, (v) => this.emit({ priceScale: { priceLabel: v } })), 'scales.price-scale.last-price-label'));
+        body.append(sid(this.boolRow('Symbol name label', config.priceScale.symbolLabel, (v) => this.emit({ priceScale: { symbolLabel: v } })), 'scales.price-scale.symbol-label'));
+        body.append(sid(this.boolRow('Pre/post market price label', config.priceScale.extendedLabel, (v) => this.emit({ priceScale: { extendedLabel: v } })), 'scales.price-scale.extended-label'));
+        body.append(sid(this.boolRow('Pre/post market price line', config.priceScale.extendedLine, (v) => this.emit({ priceScale: { extendedLine: v } })), 'scales.price-scale.extended-line'));
         body.append(sid(this.boolRow('Countdown to bar close', config.priceScale.countdown, (v) => this.emit({ priceScale: { countdown: v } })), 'scales.price-scale.countdown'));        body.append(sid(this.boolRow('Axis labels', config.priceScale.labelsVisible, (v) => this.emit({ priceScale: { labelsVisible: v } })), 'scales.price-scale.axis-labels'));
         body.append(sid(this.colorRow('Scale border color', config.priceScale.borderColor, (v) => this.emit({ priceScale: { borderColor: v } })), 'scales.price-scale.border-color'));
         body.append(sid(this.sectionTitle('Crosshair'), 'scales.crosshair'));

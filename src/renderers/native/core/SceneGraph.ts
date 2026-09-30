@@ -160,6 +160,15 @@ export class SceneGraph {
     showPriceLine = true;
     /** Draw the last-price label chip on the price axis. Independent of the line. */
     showPriceLabel = true;
+    /** Draw the symbol's name in a block beside the last-price label (needs `symbolLabel` text). */
+    showSymbolLabel = true;
+    /** The name shown in that block (the host's `symbolLabel` feature); null ⇒ none. */
+    symbolLabel: string | null = null;
+    /** Pre/post-market price label and dotted line (drawn only with an `extendedPrice`). */
+    showExtendedLabel = true;
+    showExtendedLine = true;
+    /** The latest pre/post-market print the host supplies (`extendedPrice` feature); null ⇒ none. */
+    extendedPrice: { price: number; time: number; session: 'pre' | 'post' } | null = null;
     /** Draw the countdown-to-bar-close chip on the price axis. When the price label is
      *  also shown, the two merge into one stacked block (countdown under the label);
      *  when either shows alone it's centered on the latest price level. */
