@@ -135,6 +135,8 @@ registerIcon('chevrons-right', S('<path d="m4 3.5 4.5 4.5L4 12.5"/><path d="m8.5
 registerIcon('chevrons-left', S('<path d="M12 3.5 7.5 8l4.5 4.5"/><path d="M7.5 3.5 3 8l4.5 4.5"/>'));
 // Bar replay: two left-pointing triangles.
 registerIcon('replay', S('<path d="M14 4.2v7.6L8.6 8z"/><path d="M7.4 4.2v7.6L2 8z"/>'));
+// A calendar page with a jump arrow — the bottom bar's Go to date.
+registerIcon('calendar', S('<rect x="2.2" y="3.2" width="11.6" height="10.4" rx="1.6"/><path d="M5.2 1.8v2.6M10.8 1.8v2.6M2.2 6.4h11.6M5.4 10.4h4.4m-1.8-1.8 1.8 1.8-1.8 1.8"/>'));
 // Replay transport: play, pause, and step one bar forward.
 registerIcon('play', S('<path d="M4.6 2.8v10.4L13 8z"/>'));
 registerIcon('pause', S('<path d="M4.4 3h2.6v10H4.4zM9 3h2.6v10H9z"/>'));

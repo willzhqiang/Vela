@@ -9,7 +9,7 @@
 // action at the list position, overriding its declared `align`/`order`. An explicit
 // list is the side's complete contract: ids not listed do not render there, and hiding
 // a built-in removes its other entry points too (mobile counterpart, keyboard chord —
-// `mod+alt+S` for `'screenshot'`, `alt+shift+R` for `'replay'`). Ctrl+Z / Ctrl+Y are NOT tied to `'undo-redo'`:
+// `mod+alt+S` for `'screenshot'`). Ctrl+Z / Ctrl+Y are NOT tied to `'undo-redo'`:
 // hiding the buttons keeps the editing chords.
 //
 // The trade-off is deliberate and documented: an explicit list FREEZES that side — a
