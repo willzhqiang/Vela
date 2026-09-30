@@ -93,9 +93,6 @@ export interface ReplayUiOptions {
     onChange?(snapshot: ReplayUiSnapshot): void;
 }
 
-/** The keyboard chord that toggles replay. Alt+R already resets the view, so replay takes Alt+Shift+R. */
-export const REPLAY_CHORD = 'alt+shift+r';
-
 const FALLBACK_VEIL = '#000000';
 
 export class ReplayUi {

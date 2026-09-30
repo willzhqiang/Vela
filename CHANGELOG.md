@@ -6,14 +6,16 @@ All notable changes to Vela, newest first.
 
 ### Added
 
-- **Replay controls in the workspace.** A Replay button in the topbar (and Alt+Shift+R)
+- **Replay controls in the workspace.** A Replay button in the topbar
   starts a replay without any code: a dashed line follows the pointer to the bar under it
   with everything to its right veiled — mirrored on the other charts of a multi-chart layout —
   and a click on a bar starts the replay there, paused. You can also type a date instead.
   A floating bar then plays and pauses, steps one bar, switches between 1x, 3x and 10x, shows
   how many bars are left, lets you choose another start, and exits back to the full history on
   every chart. Start it from any chart: the others show the bars that had closed by then. The
-  `topbar` option's new `'replay'` entry removes the button and its shortcut.
+  `topbar` option's new `'replay'` entry removes the button.
+- **A Go to date button in the bottom bar.** A calendar button after the range chips opens the
+  Go to date dialog that Alt+G already opened, so jumping to a day no longer needs the shortcut.
 
 ### Fixed
 

@@ -30,7 +30,7 @@ import { SymbolPicker } from '../widget/symbol-picker';
 import { IndicatorPicker } from '../widget/indicator-picker';
 import { TimeframeQuick } from '../widget/timeframe-quick';
 import { GoToDateDialog } from '../widget/go-to-date';
-import { ReplayUi, REPLAY_CHORD } from '../widget/replay-ui';
+import { ReplayUi } from '../widget/replay-ui';
 import { ShortcutsHelp } from '../widget/shortcuts-help';
 import { Toast } from '../widget/toast';
 import { Glider, ZOOM_IN, ZOOM_OUT, PAN_FAST } from '../widget/glide';
@@ -731,6 +731,7 @@ export class VelaWorkspace {
                       // are a per-chart market dimension, not a shell preference.
                       onSession: (session) => this.active.setSession(session),
                       onSettingsClick: () => this.active.chart.renderer.openSettings(),
+                      onGoToDate: () => this.goToDateDialog.open(),
                   })
                 : null;
 
@@ -2337,9 +2338,6 @@ export class VelaWorkspace {
                 category: 'Chart',
                 run: ov ? () => this.runOverride(ov) : () => this.downloadScreenshot(),
             });
-        }
-        if (topbarHas(this.topbarComp, 'replay')) {
-            this.keymap.register({ id: 'chart.replay', keys: REPLAY_CHORD, label: 'Bar replay', category: 'Chart', run: () => this.replayUi.toggle() });
         }
         this.keymap.register({ id: 'chart.go-to-date', keys: 'alt+g', label: 'Go to date…', category: 'Chart', run: () => this.goToDateDialog.open() });
         this.keymap.register({ id: 'chart.reset-view', keys: 'alt+r', label: 'Reset view (all history)', category: 'Chart', run: () => this.active.chart.setVisibleRangePreset('ALL') });
