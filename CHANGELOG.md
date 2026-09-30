@@ -6,6 +6,13 @@ All notable changes to Vela, newest first.
 
 ### Added
 
+- **Symbol name and pre/post-market price on the last-price label.** The last price now carries
+  the symbol's name in a block against the axis, and a chart showing only the regular session
+  draws the latest pre-market ("Pre", orange) or after-hours ("Post", blue) price as its own
+  chip with a dotted line — stepping aside when it lands next to the regular label, and gone
+  once the next session's first bar arrives. A provider supplies it through the optional
+  `getExtendedQuote(ticker)`. Three new switches in Scales and lines: *Symbol name label*,
+  *Pre/post market price label* and *Pre/post market price line*.
 - **Saved layouts.** The new `layouts` option takes a `LayoutStore` (where layouts live) and
   adds a topbar button with the current layout's name and a *Manage layouts* menu: Save layout,
   an Autosave switch, Make a copy…, Rename…, Download chart data… (CSV of the loaded bars),

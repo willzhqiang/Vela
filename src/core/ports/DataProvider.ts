@@ -149,6 +149,15 @@ export interface DataProvider {
      */
     getCalendar?(ticker: string, range: { from: number; to: number; session?: string }): Promise<ReadonlyArray<readonly [number, number]>>;
 
+    /**
+     * The latest print OUTSIDE regular hours for `ticker` — the pre-market or after-hours
+     * price a chart that shows only the regular session draws as its own "Pre" / "Post"
+     * label beside the regular last price. `null` ⇒ the latest print is a regular-session
+     * one (or there is none). The chart shows it only while it is newer than the newest
+     * regular bar, so a stale answer never outlives the next open. Absent ⇒ no such label.
+     */
+    getExtendedQuote?(ticker: string): Promise<ExtendedQuote | null>;
+
     /** Apply runtime config (e.g. API keys). Absent ⇒ no configuration needed. */
     configure?(config: unknown): void;
 
@@ -157,4 +166,13 @@ export interface DataProvider {
      * Absent ⇒ {@link ProviderInfo.capabilities} applies uniformly to every symbol.
      */
     capabilitiesFor?(ticker: string): ProviderCapabilities;
+}
+
+/** One extended-hours print: see {@link DataProvider.getExtendedQuote}. */
+export interface ExtendedQuote {
+    price: number;
+    /** Epoch ms of the print. */
+    time: number;
+    /** Which side of the regular session it falls on. */
+    session: 'pre' | 'post';
 }

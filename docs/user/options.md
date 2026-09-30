@@ -206,6 +206,9 @@ new VelaWorkspace('#chart', {
       'scales.price-scale.invert',           //     Invert scale
       'scales.price-scale.last-price-line',  //     Last Price Line
       'scales.price-scale.last-price-label', //     Last price label
+      'scales.price-scale.symbol-label',     //     Symbol name label
+      'scales.price-scale.extended-label',   //     Pre/post market price label
+      'scales.price-scale.extended-line',    //     Pre/post market price line
       'scales.price-scale.countdown',        //     Countdown to bar close
       'scales.price-scale.axis-labels',      //     Axis labels
       'scales.price-scale.border-color',     //     Scale border color

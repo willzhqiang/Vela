@@ -393,7 +393,7 @@ export class NativeRenderer implements IChartRenderer {
     }
 
     readonly name = 'native';
-    readonly features: readonly string[] = ['logScale', 'currentPriceLine', 'priceLabel', 'countdown', 'upColor', 'downColor', 'glow', 'animZoom', 'animPan', 'animScroll', 'animAutoscale', 'animLiveBar', 'intro', 'zoomAnchor', 'axisDrag', 'paneResize', 'candleZOrder', 'candleVisible', 'seriesOrder', 'highlights', 'sessionZones', 'gridlines', 'axisLabels', 'scaleMode', 'invertScale', 'paneScales', 'autoScale', 'timezone', 'keyboard', 'historyChords', 'priceStyle', 'priceBaseline', 'baselinePrice', 'settings', 'attribution', 'dialogHost', 'tradeMarkers', 'marks', 'indicatorTitles', 'indicatorValues', 'crosshairOverride'];
+    readonly features: readonly string[] = ['logScale', 'currentPriceLine', 'priceLabel', 'countdown', 'symbolLabel', 'extendedPrice', 'upColor', 'downColor', 'glow', 'animZoom', 'animPan', 'animScroll', 'animAutoscale', 'animLiveBar', 'intro', 'zoomAnchor', 'axisDrag', 'paneResize', 'candleZOrder', 'candleVisible', 'seriesOrder', 'highlights', 'sessionZones', 'gridlines', 'axisLabels', 'scaleMode', 'invertScale', 'paneScales', 'autoScale', 'timezone', 'keyboard', 'historyChords', 'priceStyle', 'priceBaseline', 'baselinePrice', 'settings', 'attribution', 'dialogHost', 'tradeMarkers', 'marks', 'indicatorTitles', 'indicatorValues', 'crosshairOverride'];
 
     /** Apply a render feature live — mutate the field + invalidate, no engine re-run. */
     applyFeature(key: string, value: unknown): void {
@@ -416,6 +416,14 @@ export class NativeRenderer implements IChartRenderer {
             case 'countdown':
                 this.scene.showCountdown = Boolean(value);
                 this.syncCountdownTimer();
+                break;
+            case 'symbolLabel':
+                // The name beside the last-price label (e.g. the bare ticker); empty/non-string ⇒ none.
+                this.scene.symbolLabel = typeof value === 'string' && value !== '' ? value : null;
+                break;
+            case 'extendedPrice':
+                // The latest pre/post-market print from the host (a chart on the regular session only).
+                this.scene.extendedPrice = sanitizeExtendedPrice(value);
                 break;
             case 'upColor':
                 this.candleUp = String(value);
@@ -592,6 +600,8 @@ export class NativeRenderer implements IChartRenderer {
             case 'currentPriceLine': return this.scene.showPriceLine;
             case 'priceLabel': return this.scene.showPriceLabel;
             case 'countdown': return this.scene.showCountdown;
+            case 'symbolLabel': return this.scene.symbolLabel;
+            case 'extendedPrice': return this.scene.extendedPrice;
             case 'upColor': return this.candleUp;
             case 'downColor': return this.candleDown;
             case 'glow': return this.glowAmount;
@@ -759,6 +769,9 @@ export class NativeRenderer implements IChartRenderer {
                 labelsVisible: this.scene.showAxisLabels,
                 currentPriceLine: this.scene.showPriceLine,
                 priceLabel: this.scene.showPriceLabel,
+                symbolLabel: this.scene.showSymbolLabel,
+                extendedLabel: this.scene.showExtendedLabel,
+                extendedLine: this.scene.showExtendedLine,
                 countdown: this.scene.showCountdown,
                 animateLastPrice: this.animLiveBar.on,
             },
@@ -897,6 +910,9 @@ export class NativeRenderer implements IChartRenderer {
         this.scene.showAxisLabels = next.priceScale.labelsVisible;
         this.scene.showPriceLine = next.priceScale.currentPriceLine;
         this.scene.showPriceLabel = next.priceScale.priceLabel;
+        this.scene.showSymbolLabel = next.priceScale.symbolLabel;
+        this.scene.showExtendedLabel = next.priceScale.extendedLabel;
+        this.scene.showExtendedLine = next.priceScale.extendedLine;
         this.scene.showCountdown = next.priceScale.countdown;
         this.syncCountdownTimer();
         // animations: on/off only — the durations are the host's (EaseSetting remembers them)
@@ -4324,6 +4340,17 @@ function sanitizeSessionZones(value: unknown): SessionZones | null {
         return out.sort((a, b) => a[0] - b[0]);
     };
     return { pre: windows(v.pre), post: windows(v.post), extended: windows(v.extended) };
+}
+
+/** Coerce arbitrary input into a usable pre/post-market print, or null (nothing to draw). */
+function sanitizeExtendedPrice(value: unknown): { price: number; time: number; session: 'pre' | 'post' } | null {
+    if (value == null || typeof value !== 'object') return null;
+    const v = value as { price?: unknown; time?: unknown; session?: unknown };
+    const price = Number(v.price);
+    const time = Number(v.time);
+    if (!(price > 0) || !Number.isFinite(price) || !Number.isFinite(time)) return null;
+    if (v.session !== 'pre' && v.session !== 'post') return null;
+    return { price, time, session: v.session };
 }
 
 /** Whether a value is one of the supported price-series styles (built-ins + SDK-registered). */
