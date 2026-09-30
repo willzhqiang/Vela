@@ -393,7 +393,7 @@ export class NativeRenderer implements IChartRenderer {
     }
 
     readonly name = 'native';
-    readonly features: readonly string[] = ['logScale', 'currentPriceLine', 'priceLabel', 'countdown', 'symbolLabel', 'extendedPrice', 'upColor', 'downColor', 'glow', 'animZoom', 'animPan', 'animScroll', 'animAutoscale', 'animLiveBar', 'intro', 'zoomAnchor', 'axisDrag', 'paneResize', 'candleZOrder', 'candleVisible', 'seriesOrder', 'highlights', 'sessionZones', 'gridlines', 'axisLabels', 'scaleMode', 'invertScale', 'paneScales', 'autoScale', 'timezone', 'keyboard', 'historyChords', 'priceStyle', 'priceBaseline', 'baselinePrice', 'settings', 'attribution', 'dialogHost', 'tradeMarkers', 'marks', 'indicatorTitles', 'indicatorValues', 'crosshairOverride'];
+    readonly features: readonly string[] = ['logScale', 'currentPriceLine', 'priceLabel', 'countdown', 'symbolLabel', 'extendedPrice', 'replayStart', 'upColor', 'downColor', 'glow', 'animZoom', 'animPan', 'animScroll', 'animAutoscale', 'animLiveBar', 'intro', 'zoomAnchor', 'axisDrag', 'paneResize', 'candleZOrder', 'candleVisible', 'seriesOrder', 'highlights', 'sessionZones', 'gridlines', 'axisLabels', 'scaleMode', 'invertScale', 'paneScales', 'autoScale', 'timezone', 'keyboard', 'historyChords', 'priceStyle', 'priceBaseline', 'baselinePrice', 'settings', 'attribution', 'dialogHost', 'tradeMarkers', 'marks', 'indicatorTitles', 'indicatorValues', 'crosshairOverride'];
 
     /** Apply a render feature live — mutate the field + invalidate, no engine re-run. */
     applyFeature(key: string, value: unknown): void {
@@ -420,6 +420,10 @@ export class NativeRenderer implements IChartRenderer {
             case 'symbolLabel':
                 // The name beside the last-price label (e.g. the bare ticker); empty/non-string ⇒ none.
                 this.scene.symbolLabel = typeof value === 'string' && value !== '' ? value : null;
+                break;
+            case 'replayStart':
+                // The bar a replay began on: a dashed vertical marker; a non-finite value clears it.
+                this.scene.replayStart = typeof value === 'number' && Number.isFinite(value) ? value : null;
                 break;
             case 'extendedPrice':
                 // The latest pre/post-market print from the host (a chart on the regular session only).
@@ -602,6 +606,7 @@ export class NativeRenderer implements IChartRenderer {
             case 'countdown': return this.scene.showCountdown;
             case 'symbolLabel': return this.scene.symbolLabel;
             case 'extendedPrice': return this.scene.extendedPrice;
+            case 'replayStart': return this.scene.replayStart;
             case 'upColor': return this.candleUp;
             case 'downColor': return this.candleDown;
             case 'glow': return this.glowAmount;

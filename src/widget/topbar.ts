@@ -57,6 +57,7 @@ const CSS = `
 .vela-widget-layouts[data-dirty='1'] .vela-widget-layouts-name::after { content: ' •'; color: var(--vela-fg-muted); }
 .vela-widget-layouts .vela-icon { flex: none; color: var(--vela-fg-muted); }
 .vela-widget-layouts[aria-expanded='true'] { background: var(--vela-hover); }
+.vela-widget-replay[data-active='1'], .vela-widget-replay[data-active='1']:hover { background: var(--vela-selected-bg); color: var(--vela-selected-fg); }
 .vela-widget-symbol:hover, .vela-widget-tf:hover, .vela-widget-style:hover, .vela-widget-indicators:hover, .vela-widget-layouts:hover, .vela-widget-action-left:hover { background: var(--vela-hover); color: var(--vela-fg-bright); }
 /* Timeframe cluster: duration-sorted favorite chips, highlight in place, caret
    opening the full dropdown. With no favorites the caret is the merged trigger
@@ -351,7 +352,17 @@ export class Topbar {
         this.setHistoryState(false, false);
         const screenshotBtn = vis('screenshot') && !topbarActionOverride('screenshot') ? tool('vela-widget-screenshot', 'camera', 'Download screenshot', opts.onScreenshotClick) : null;
         // Same detached-bare-button rule as the tools above, so setReplayActive stays a safe no-op.
-        const replayBtn = vis('replay') && opts.onReplayClick ? tool('vela-widget-replay', 'replay', 'Bar replay', opts.onReplayClick) : null;
+        // A labelled button (like Indicators): while a replay is being set up or runs it lights up in the selection colours.
+        let replayBtn: HTMLButtonElement | null = null;
+        if (vis('replay') && opts.onReplayClick) {
+            replayBtn = doc.createElement('button');
+            replayBtn.className = 'vela-widget-indicators vela-widget-replay';
+            replayBtn.append(iconEl('replay', doc), doc.createTextNode('Replay'));
+            replayBtn.setAttribute('aria-label', 'Bar replay');
+            replayBtn.setAttribute('aria-pressed', 'false');
+            replayBtn.addEventListener('click', opts.onReplayClick);
+            this.tooltips.push(new Tooltip(replayBtn, { content: 'Bar replay', triggerId: 'vela-tool-vela-widget-replay', host: this.host }));
+        }
         this.replayBtn = replayBtn ?? doc.createElement('button');
         if (vis('layouts') && opts.onLayoutsClick) {
             const b = doc.createElement('button');

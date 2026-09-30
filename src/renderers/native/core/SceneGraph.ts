@@ -169,6 +169,8 @@ export class SceneGraph {
     showExtendedLine = true;
     /** The latest pre/post-market print the host supplies (`extendedPrice` feature); null ⇒ none. */
     extendedPrice: { price: number; time: number; session: 'pre' | 'post' } | null = null;
+    /** Epoch ms of the bar a bar replay started on (`replayStart` feature) — a dashed vertical line marks it; null ⇒ none. */
+    replayStart: number | null = null;
     /** Draw the countdown-to-bar-close chip on the price axis. When the price label is
      *  also shown, the two merge into one stacked block (countdown under the label);
      *  when either shows alone it's centered on the latest price level. */
