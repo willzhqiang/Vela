@@ -16,6 +16,8 @@ import { DARK_THEME } from '../../../core/theme';
 import { tzOffsetMs } from './tz';
 import { countdownText } from './countdown';
 import { tagTextColor } from './contrast';
+import { CHIP_H, layoutPriceChips } from './price-chips';
+import { SESSION_POST, SESSION_PRE } from '../../../core/palette';
 import { markGroupVisible } from '../../shared/marks-state';
 import { clusterTooltip, layoutMarkLane, markGlyphAt, markStackAt, type MarkLaneLayout, type PlacedGlyph } from './marks/layout';
 import { MarkIconRaster, paintMarkLane } from './marks/paint';
@@ -346,61 +348,103 @@ export class ChromeRenderer {
         // as does a hidden price PANE (collapsed, or zero-height while a study pane is maximized).
         if (!pricePane || n === 0 || scene.candlesHidden || pricePane.collapsed || pricePane.bounds.height <= 0) return;
         const last = scene.bars[n - 1]!;
+        const paneTop = pricePane.bounds.top;
+        const paneBottom = paneTop + pricePane.bounds.height;
         const y = coords.priceToY(last.close, pricePane.scale, pricePane.bounds);
-        if (y < pricePane.bounds.top || y > pricePane.bounds.top + pricePane.bounds.height) return;
+        const mainVisible = y >= paneTop && y <= paneBottom;
         const color = this.priceElementColor(scene, coords, theme, last);
+        const priceText = (price: number): string => formatAxisValue(pricePane.scale, pricePane.bounds.height, price, percentScaleFor(scene, pricePane), scene.priceMintick);
 
-        // ── dashed line (independent of the label) ──
-        if (scene.showPriceLine) {
-            const yy = Math.round(y) + 0.5;
-            ctx.strokeStyle = color;
+        // The pre/post-market print: only while it is newer than the newest (regular) bar, so it goes
+        // away by itself once the next session's first bar arrives.
+        const ext = scene.extendedPrice && scene.extendedPrice.time > last.time && (scene.showExtendedLabel || scene.showExtendedLine) ? scene.extendedPrice : null;
+        const extY = ext ? coords.priceToY(ext.price, pricePane.scale, pricePane.bounds) : null;
+        const extVisible = extY !== null && extY >= paneTop && extY <= paneBottom;
+        const extColor = ext?.session === 'post' ? SESSION_POST : SESSION_PRE;
+
+        // ── dotted lines (independent of the labels) ──
+        const line = (yy: number, stroke: string): void => {
+            const ly = Math.round(yy) + 0.5;
+            ctx.strokeStyle = stroke;
             ctx.lineWidth = 1;
             setDash(ctx, 'dotted');
             ctx.beginPath();
-            ctx.moveTo(0, yy);
-            ctx.lineTo(dataW, yy);
+            ctx.moveTo(0, ly);
+            ctx.lineTo(dataW, ly);
             ctx.stroke();
             setDash(ctx, 'solid');
-        }
+        };
+        if (scene.showPriceLine && mainVisible) line(y, color);
+        if (ext && scene.showExtendedLine && extVisible) line(extY!, extColor);
 
-        // ── axis chips: last-price label and/or countdown ──
+        // ── axis chips: last-price label (+ symbol name) and/or countdown, and the pre/post chip ──
         const cdText = scene.showCountdown ? countdownText(last.time, coords.barInterval, Date.now()) : null;
         const showCountdown = cdText !== null;
         const showLabel = scene.showPriceLabel;
-        if (!showLabel && !showCountdown) return;
+        const drawMain = mainVisible && (showLabel || showCountdown);
+        const drawExt = ext !== null && scene.showExtendedLabel && extVisible;
+        if (!drawMain && !drawExt) return;
 
-        const priceText = formatAxisValue(pricePane.scale, pricePane.bounds.height, last.close, percentScaleFor(scene, pricePane), scene.priceMintick);
         const PAD = 8;
         const x = dataW + 1;
-        // Text color chosen for contrast against the chip's own color (so a white candle
-        // color yields dark text, a dark color yields light text).
-        const textColor = tagTextColor(color, theme.background);
         ctx.textBaseline = 'middle';
+        const block = (bx: number, top: number, w: number, h: number, fill: string): void => {
+            ctx.fillStyle = fill;
+            ctx.fillRect(bx, top, w, h);
+        };
+        // Vertical placement: the two never overlap (the pre/post chip steps aside).
+        const mainH = showLabel && showCountdown ? 2 * CHIP_H : CHIP_H;
+        const slots = layoutPriceChips({ mainY: y, mainH, extY: drawExt ? extY : null, top: paneTop, bottom: paneBottom });
 
-        if (showLabel && cdText !== null) {
-            // Merged block: label row on top (centered on the price line), countdown row
-            // under it. Same width, text flushed left.
-            const w = Math.max(ctx.measureText(priceText).width, ctx.measureText(cdText).width) + PAD;
-            const top = y - 8;
-            const tx = x + PAD / 2;
-            ctx.fillStyle = color;
-            ctx.fillRect(x, top, w, 32);
-            ctx.fillStyle = textColor;
-            ctx.textAlign = 'left';
-            ctx.fillText(priceText, tx, top + 8);
-            ctx.fillText(cdText, tx, top + 24);
-            ctx.textAlign = 'start';
-            return;
+        if (drawMain) {
+            // Text color chosen for contrast against the chip's own color (so a white candle
+            // color yields dark text, a dark color yields light text).
+            const textColor = tagTextColor(color, theme.background);
+            const name = scene.showSymbolLabel && showLabel ? scene.symbolLabel : null;
+            if (name) {
+                // The symbol's name: a block against the axis's left edge, on the label's row.
+                const nw = ctx.measureText(name).width + PAD;
+                block(x - nw, slots.main.top, nw, CHIP_H, color);
+                ctx.fillStyle = textColor;
+                ctx.textAlign = 'center';
+                ctx.fillText(name, x - nw / 2, slots.main.top + CHIP_H / 2);
+            }
+            if (showLabel && cdText !== null) {
+                // Merged block: label row on top (centered on the price line), countdown row
+                // under it. Same width, text flushed left.
+                const text = priceText(last.close);
+                const w = Math.max(ctx.measureText(text).width, ctx.measureText(cdText).width) + PAD;
+                block(x, slots.main.top, w, slots.main.height, color);
+                ctx.fillStyle = textColor;
+                ctx.textAlign = 'left';
+                ctx.fillText(text, x + PAD / 2, slots.main.top + CHIP_H / 2);
+                ctx.fillText(cdText, x + PAD / 2, slots.main.top + CHIP_H * 1.5);
+            } else {
+                // Lone label or countdown — centered on the price level, text centered.
+                const text = showLabel ? priceText(last.close) : (cdText ?? '');
+                const w = ctx.measureText(text).width + PAD;
+                block(x, slots.main.top, w, CHIP_H, color);
+                ctx.fillStyle = textColor;
+                ctx.textAlign = 'center';
+                ctx.fillText(text, x + w / 2, slots.main.top + CHIP_H / 2);
+            }
         }
 
-        // Lone label or countdown — centered on the price level, text centered.
-        const text = showLabel ? priceText : (cdText ?? '');
-        const w = ctx.measureText(text).width + PAD;
-        ctx.fillStyle = color;
-        ctx.fillRect(x, y - 8, w, 16);
-        ctx.fillStyle = textColor;
-        ctx.textAlign = 'center';
-        ctx.fillText(text, x + w / 2, y);
+        if (drawExt && ext && slots.ext) {
+            // "Pre" / "Post" block against the axis, and the print on the axis, in the session's color.
+            const textColor = tagTextColor(extColor, theme.background);
+            const cy = slots.ext.top + CHIP_H / 2;
+            const tag = ext.session === 'post' ? 'Post' : 'Pre';
+            const tw = ctx.measureText(tag).width + PAD;
+            block(x - tw, slots.ext.top, tw, CHIP_H, extColor);
+            const text = priceText(ext.price);
+            const w = ctx.measureText(text).width + PAD;
+            block(x, slots.ext.top, w, CHIP_H, extColor);
+            ctx.fillStyle = textColor;
+            ctx.textAlign = 'center';
+            ctx.fillText(tag, x - tw / 2, cy);
+            ctx.fillText(text, x + w / 2, cy);
+        }
         ctx.textAlign = 'start';
     }
 

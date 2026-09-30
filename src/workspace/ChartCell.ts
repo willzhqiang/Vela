@@ -18,6 +18,7 @@ import type { IndicatorHandle } from '../core/IndicatorHandle';
 import { Statusline, statuslineInkOf, type StatuslinePart } from '../widget/statusline';
 import { MarketStatusTracker } from '../widget/market-status';
 import { SessionShadingTracker, parseSessionSpec } from '../widget/session-shading';
+import { ExtendedPriceTracker } from '../widget/extended-price';
 import { timeframeMs } from '../widget/timeframe';
 import { Watermark } from '../widget/watermark';
 import { CellControls } from '../widget/cell-controls';
@@ -249,6 +250,10 @@ export class ChartCell {
     private readonly marketStatus: MarketStatusTracker | null;
     /** Keeps the session shading on the symbol's real calendar (see {@link SessionShadingTracker}). */
     private readonly sessionShading = new SessionShadingTracker((zones) => this.inner?.renderer.set('sessionZones', zones));
+    /** The pre/post-market price beside the last price, while the chart shows the regular session only. */
+    private readonly extendedPrice = new ExtendedPriceTracker((quote) => this.inner?.renderer.set('extendedPrice', quote));
+    /** `symbol|session` the extended-price tracker is bound to — re-binding only on a real change. */
+    private extendedKey = '';
     private readonly watermark: Watermark | null;
     /** Bottom-center hover cluster, pinned to the price plot: drag handle, zoom in/out, maximize/restore, reset view. */
     private readonly cellControls: CellControls;
@@ -437,6 +442,7 @@ export class ChartCell {
         this.inner.on('load:end', () => {
             this.watermark?.setLoading(false);
             this.refreshSessionShading(); // the first painted bars now define the exact range
+            this.refreshPriceLabels();
         });
         this.inner.on('viewport:changed', (range) => this.sessionShading.updateRange(range));
         this.applyTimezone();
@@ -682,7 +688,20 @@ export class ChartCell {
                 this.pushSettingsSections(); // the Trading session group follows the symbol
             }
             this.refreshSessionShading();
+            this.refreshPriceLabels();
         });
+    }
+
+    /** The name beside the last-price label (the bare ticker) and the pre/post-market price for this cell's market. */
+    private refreshPriceLabels(): void {
+        const chart = this.inner;
+        const symbol = this.state.symbol;
+        if (!chart || !symbol) return;
+        chart.renderer.set('symbolLabel', parseSymbol(symbol).ticker);
+        const key = `${symbol}|${this.session}`;
+        if (key === this.extendedKey) return;
+        this.extendedKey = key;
+        this.extendedPrice.track(chart.data, symbol, this.session);
     }
 
     /** (Re)derive the pre/post-market shading bands for this cell's market. The bands
@@ -1532,6 +1551,7 @@ export class ChartCell {
         this.history.destroy();
         this.marketStatus?.stop();
         this.sessionShading.stop();
+        this.extendedPrice.stop();
         this.statusline?.destroy();
         this.watermark?.destroy();
         this.inner?.destroy();

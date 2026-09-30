@@ -105,6 +105,7 @@ A feed injected this way is used as-is: `chart.data.registerProvider(...)` becom
 - `getBars` implemented; reads ticker/timeframe from arguments, returns open-time-in-ms bars, sorted + de-duplicated.
 - Newest bar treated as the forming candle; roll forward by emitting a larger open-time (no separate close event).
 - Ranged `getBars` tolerates an overlapping `from` and honors "`to` omitted = now"; no timeframe aggregation across requests unless your venue needs it internally.
+- **`getExtendedQuote(ticker)`** — the latest print outside regular hours, `{ price, time, session: 'pre' | 'post' }`, or `null` when the latest print is a regular-session one. A chart that shows only the regular session draws it as a "Pre" / "Post" label and dotted line beside the last price, polling every 30 s, and only while it is newer than the newest bar (so it disappears at the next open). Absent ⇒ no such label.
 - (Optional) `listSymbols` so bare symbols resolve to you; `getSymbolInfo` for real syminfo; `subscribe` for a true candle stream (else polling is used); `getCalendar` for resolved market-time windows on venues with trading sessions.
 - Registered via `chart.data.registerProvider(name, provider)`.
 
