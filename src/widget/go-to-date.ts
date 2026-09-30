@@ -32,6 +32,8 @@ export interface GoToDateDialogOptions {
     onApply: (ts: number) => void;
     onOpenChange?: (open: boolean) => void;
     host?: HTMLElement;
+    /** Dialog title and input label (default `Go to date`) — for a host that reuses the dialog to pick a date for something else. */
+    title?: string;
 }
 
 export class GoToDateDialog {
@@ -45,11 +47,12 @@ export class GoToDateDialog {
         this.input = doc.createElement('input');
         this.input.className = 'vela-gd-input';
         this.input.setAttribute('spellcheck', 'false');
-        this.input.setAttribute('aria-label', 'Go to date');
+        const title = opts.title ?? 'Go to date';
+        this.input.setAttribute('aria-label', title);
         this.hint = doc.createElement('div');
         this.hint.className = 'vela-gd-hint';
         this.dialog = new Dialog({
-            title: 'Go to date',
+            title,
             host: opts.host,
             draggable: true,
             closeOnInteractOutside: true,

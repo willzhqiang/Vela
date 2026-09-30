@@ -248,6 +248,26 @@ ws.replay.on('replay:step', ({ cursorTime, remaining }) => updateUi(cursorTime, 
   the whole workspace; `cursorTime`, `remaining` and `nextTime` (and `bounds`) read the
   active cell's chart, and the `replay:step` / `replay:tick` events report it.
 
+### The built-in replay controls
+
+The shell drives `ws.replay` for you. The **Replay** button in the topbar (or **Alt+Shift+R**;
+Alt+R keeps resetting the view) starts choosing where the replay begins:
+
+- **Pick a start bar.** A dashed vertical line follows the pointer to the bar under it, and
+  everything to its right is veiled. In a multi-chart layout the other charts mirror the line
+  at the same moment. Click a bar to start the replay there, or choose **Select date…** to type
+  a date. Escape (or **Cancel**) backs out.
+- **Play it back.** A floating bar offers play/pause, one step forward, the speed (1x, 3x and
+  10x, one bar every 1000, 333 and 100 ms) and how many bars are left. The replay starts
+  paused. The first button of the bar moves the start to another bar; the last one exits and
+  brings back the full history on every chart.
+- **Start from any chart.** The clicked chart's bar sets the shared replay time, and the other
+  charts show the bars that had closed by then.
+
+A replay started through the API shows the same bar, so the buttons and the code stay in sync.
+Hiding `'replay'` from the [topbar composition](#composing-the-topbar) removes the button and
+its chord.
+
 A contribution drives it as `ctx.replay`. Driving one cell's `chart.replay` directly still
 replays that chart alone. The cut rule is exported for interfaces that preview it:
 `barClose(open, timeframe)` is when a bar closes (calendar months for month-based
@@ -534,6 +554,7 @@ Entries come from one shared vocabulary:
 | `'style'` | The chart-style dropdown. |
 | `'layout'` | The layout dropdown (renders on multi-chart shells only). |
 | `'indicators'` | The Indicators slot — the built-in button, or a plugin's [slot override](../contributing/plugin-sdk.md#replacing-a-built-in-button--slot-overrides). Omitting it removes the button, the mobile stop, the `/` shortcut, and skips the picker dialog. |
+| `'replay'` | The bar-replay toggle (also `alt+shift+R`): choose a start bar, then play, step, change speed or exit from the floating bar. |
 | `'undo-redo'` | The undo/redo pair. |
 | `'alerts'` | The alerts bell (badge included). |
 | `'panels'` | The side-panel toggle group (object tree, data window, contributed panels). |
@@ -550,7 +571,7 @@ The rules that make it predictable:
 - **Hiding an entry removes its other entry points too**: the mobile counterpart (the
   more-drawer's undo/redo/screenshot buttons, alerts and panel rows, the mobile-bar
   indicators stop) and the entry's keyboard chord — `mod+alt+S` goes with
-  `'screenshot'`. Ctrl+Z / Ctrl+Y stay regardless of `'undo-redo'`: they belong to
+  `'screenshot'`, `alt+shift+R` with `'replay'`. Ctrl+Z / Ctrl+Y stay regardless of `'undo-redo'`: they belong to
   editing, not to the buttons.
 - **Mobile keeps its own arrangement.** The composition decides *visibility* everywhere,
   but only the desktop bar takes the *ordering* — the mobile bar and drawers keep their

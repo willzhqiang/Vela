@@ -30,6 +30,7 @@ import { SymbolPicker } from '../widget/symbol-picker';
 import { IndicatorPicker } from '../widget/indicator-picker';
 import { TimeframeQuick } from '../widget/timeframe-quick';
 import { GoToDateDialog } from '../widget/go-to-date';
+import { ReplayUi, REPLAY_CHORD } from '../widget/replay-ui';
 import { ShortcutsHelp } from '../widget/shortcuts-help';
 import { Toast } from '../widget/toast';
 import { Glider, ZOOM_IN, ZOOM_OUT, PAN_FAST } from '../widget/glide';
@@ -305,6 +306,8 @@ export class VelaWorkspace {
     private readonly indicatorPicker: IndicatorPicker | null;
     private readonly tfQuick: TimeframeQuick;
     private readonly goToDateDialog: GoToDateDialog;
+    private readonly replayDateDialog: GoToDateDialog;
+    private replayUi!: ReplayUi;
     private shortcutsHelp: ShortcutsHelp | null = null;
     private readonly toastHost: Toast;
     private readonly glider = new Glider(() => (this.activeId ? (this.cellsById.get(this.activeId)?.chart ?? null) : null));
@@ -531,6 +534,7 @@ export class VelaWorkspace {
             onUndoClick: () => this.active.history.undo(),
             onRedoClick: () => this.active.history.redo(),
             onScreenshotClick: () => this.downloadScreenshot(),
+            onReplayClick: () => this.replayUi.toggle(),
             onAlertsClick: (anchor) => this.openAlertsMenu(anchor),
             timeframe: '60',
             timeframes: opts.timeframes ?? DEFAULT_TIMEFRAMES,
@@ -608,6 +612,34 @@ export class VelaWorkspace {
         this.stripsEl.className = 'vela-ws-strips';
         this.root.appendChild(this.stripsEl);
         this.toastHost = new Toast(this.gridEl);
+        // Bar replay's chrome: the start-bar picker and control bar float in the grid; the date
+        // dialog is a second instance of Go to date, titled for what it does here.
+        this.replayDateDialog = new GoToDateDialog({
+            host: this.root,
+            title: 'Replay from date',
+            zone: () => this.active.displayTimezone,
+            onApply: (ts) => void this.replayUi.startFromDate(ts),
+            onOpenChange: (open) => this.trackDialog(open),
+        });
+        this.replayUi = new ReplayUi({
+            host: this.gridEl,
+            replay: this.replay,
+            cells: () => this.cells(),
+            activeId: () => this.activeId,
+            onCells: (handler) => {
+                const offs = [
+                    this.events.on('cell:created', ({ id }) => handler({ kind: 'created', id })),
+                    this.events.on('cell:destroyed', ({ id }) => handler({ kind: 'destroyed', id })),
+                    this.events.on('cell:active', ({ id }) => handler({ kind: 'active', id })),
+                ];
+                return () => {
+                    for (const off of offs) off();
+                };
+            },
+            openDatePicker: () => this.replayDateDialog.open(),
+            toast: (message, kind) => this.toast(message, kind),
+            onChange: (s) => this.topbar?.setReplayActive(s.phase !== 'idle'),
+        });
 
         // ONE attribution mark for the whole grid (bottom-left, floating above the
         // bottom-left cell's time axis) — the cells disable their per-chart marks, and
@@ -1343,6 +1375,8 @@ export class VelaWorkspace {
         this.indicatorPicker?.destroy();
         this.tfQuick.destroy();
         this.goToDateDialog.destroy();
+        this.replayUi.destroy();
+        this.replayDateDialog.destroy();
         this.shortcutsHelp?.destroy();
         this.toastHost.destroy();
         this.alertsMenu?.destroy();
@@ -2303,6 +2337,9 @@ export class VelaWorkspace {
                 category: 'Chart',
                 run: ov ? () => this.runOverride(ov) : () => this.downloadScreenshot(),
             });
+        }
+        if (topbarHas(this.topbarComp, 'replay')) {
+            this.keymap.register({ id: 'chart.replay', keys: REPLAY_CHORD, label: 'Bar replay', category: 'Chart', run: () => this.replayUi.toggle() });
         }
         this.keymap.register({ id: 'chart.go-to-date', keys: 'alt+g', label: 'Go to date…', category: 'Chart', run: () => this.goToDateDialog.open() });
         this.keymap.register({ id: 'chart.reset-view', keys: 'alt+r', label: 'Reset view (all history)', category: 'Chart', run: () => this.active.chart.setVisibleRangePreset('ALL') });
