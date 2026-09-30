@@ -139,6 +139,12 @@ registerIcon('replay', S('<path d="M14 4.2v7.6L8.6 8z"/><path d="M7.4 4.2v7.6L2 
 registerIcon('calendar-grid', S('<rect x="2.2" y="3.2" width="11.6" height="10.4" rx="1.6"/><path d="M5.2 1.8v2.6M10.8 1.8v2.6M2.2 6.4h11.6M5.2 8.6h.01M8 8.6h.01M10.8 8.6h.01M5.2 11h.01M8 11h.01M10.8 11h.01"/>'));
 // A calendar page with a jump arrow — the bottom bar's Go to date.
 registerIcon('calendar', S('<rect x="2.2" y="3.2" width="11.6" height="10.4" rx="1.6"/><path d="M5.2 1.8v2.6M10.8 1.8v2.6M2.2 6.4h11.6M5.4 10.4h4.4m-1.8-1.8 1.8 1.8-1.8 1.8"/>'));
+// The layouts menu: a disk, two stacked pages, a tray arrow, a folder, and a sort arrow.
+registerIcon('save', S('<path d="M3 2.8h8.2l2 2v8.4H3z"/><path d="M5.4 2.8v3.4h4.4V2.8M5.4 13.2V9.4h5.2v3.8"/>'));
+registerIcon('copy', S('<rect x="5.6" y="5.6" width="8" height="8" rx="1.6"/><path d="M10.4 3.2H4.4a1.6 1.6 0 0 0-1.6 1.6v6"/>'));
+registerIcon('download', S('<path d="M8 2.4v7.6m0 0-3-3m3 3 3-3M2.8 12.6h10.4"/>'));
+registerIcon('folder', S('<path d="M2 4.6a1.4 1.4 0 0 1 1.4-1.4h2.9l1.4 1.6h4.9A1.4 1.4 0 0 1 14 6.2v5.2a1.4 1.4 0 0 1-1.4 1.4H3.4A1.4 1.4 0 0 1 2 11.4z"/>'));
+registerIcon('sort', S('<path d="M4 3v9.2m0 0-2-2m2 2 2-2M8.6 4h5.4M8.6 7.6h4M8.6 11.2h2.6"/>'));
 // Replay transport: play, pause, and step one bar forward.
 registerIcon('play', S('<path d="M4.6 2.8v10.4L13 8z"/>'));
 registerIcon('pause', S('<path d="M4.4 3h2.6v10H4.4zM9 3h2.6v10H9z"/>'));

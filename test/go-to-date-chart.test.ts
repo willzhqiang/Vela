@@ -254,3 +254,27 @@ describe('chart.goToRange', () => {
         expect(renderer.frames.length).toBe(n);
     });
 });
+
+describe('chart.getBars', () => {
+    it('returns a copy of the loaded bars, oldest first', async () => {
+        const { chart, renderer } = make({ bars: 60 });
+        await chart.ready();
+        const bars = chart.getBars();
+        expect(bars).toHaveLength(renderer.bars.length);
+        expect(bars.map((b) => b.time)).toEqual(renderer.bars.map((b) => b.time));
+        bars[0]!.close = -1;
+        bars.pop();
+        expect(chart.getBars()[0]!.close).not.toBe(-1);
+        expect(chart.getBars()).toHaveLength(renderer.bars.length);
+    });
+
+    it('during a replay it holds only the bars revealed so far', async () => {
+        const { chart, renderer } = make({ bars: 100, total: 400 });
+        await chart.ready();
+        await chart.replay.start({ from: renderer.bars[40]!.time });
+        expect(chart.getBars()).toHaveLength(41);
+        chart.replay.step();
+        expect(chart.getBars()).toHaveLength(42);
+        expect(chart.getBars()[41]!.time).toBe(renderer.bars[41]!.time);
+    });
+});
