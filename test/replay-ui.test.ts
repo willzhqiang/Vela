@@ -635,3 +635,36 @@ describe('pinning the bar', () => {
         expect(bar(rig).style.top).toBe('260px');
     });
 });
+
+describe('the start marker across timeframes', () => {
+    const H = 3_600_000;
+    /** Cells with their own timeframes; the first is active (the replay's own cursor comes from it). */
+    function mixed(tfs: Record<string, string>): Rig {
+        rig.ui.destroy();
+        const r = make(Object.keys(tfs));
+        for (const c of r.cells) (c.chart as { market?: { timeframe: string } }).market = { timeframe: tfs[c.id]! };
+        return r;
+    }
+
+    it('marks each chart at the last bar IT keeps at the start, not the active chart\'s time', async () => {
+        const r = mixed({ h1: '60', m10: '10', d: 'D' });
+        const T = 10 * 24 * 24 * H; // an hourly bar open (multiple of a day, so bar edges are easy to read)
+        await r.ui.startFromDate(T + 5 * H);
+        // the fake replay reports cursorTime = the requested time; the hourly bar closes at +1 h
+        expect(lastSet(r, 'h1', 'replayStart')).toBe(T + 5 * H);
+        expect(lastSet(r, 'm10', 'replayStart')).toBe(T + 5 * H + H - 10 * 60_000); // the last 10 m bar closed by then
+        expect(lastSet(r, 'd', 'replayStart')).toBe(T + 5 * H + H - 24 * H); // the day containing it has not closed: the previous day's bar
+        r.ui.destroy();
+    });
+
+    it('a chart added mid-replay is marked the same way', async () => {
+        const r = mixed({ h1: '60' });
+        const T = 10 * 24 * 24 * H;
+        await r.ui.startFromDate(T + 5 * H);
+        r.addCell('m10');
+        (r.cells.find((c) => c.id === 'm10')!.chart as { market?: { timeframe: string } }).market = { timeframe: '10' };
+        r.fireCells({ kind: 'created', id: 'm10' });
+        expect(lastSet(r, 'm10', 'replayStart')).toBe(T + 5 * H + H - 10 * 60_000);
+        r.ui.destroy();
+    });
+});
