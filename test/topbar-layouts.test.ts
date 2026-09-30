@@ -64,3 +64,39 @@ describe('the layouts button', () => {
         expect(() => bar.setLayoutsState({ name: 'x', dirty: true })).not.toThrow();
     });
 });
+
+describe('the replay button', () => {
+    const replayBtn = (): HTMLButtonElement | null => document.querySelector<HTMLButtonElement>('.vela-widget-replay');
+
+    it('is absent without a handler', () => {
+        make();
+        expect(replayBtn()).toBeNull();
+    });
+
+    it('carries its name, and hands the click over', () => {
+        const onReplayClick = vi.fn();
+        make({ onReplayClick });
+        const b = replayBtn()!;
+        expect(b.textContent).toContain('Replay');
+        expect(b.querySelector('.vela-icon')).not.toBeNull();
+        b.click();
+        expect(onReplayClick).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows pressed while a replay is being set up or runs', () => {
+        const { bar } = make({ onReplayClick: () => undefined });
+        expect(replayBtn()!.getAttribute('aria-pressed')).not.toBe('true');
+        bar.setReplayActive(true);
+        expect(replayBtn()!.dataset.active).toBe('1');
+        expect(replayBtn()!.getAttribute('aria-pressed')).toBe('true');
+        bar.setReplayActive(false);
+        expect(replayBtn()!.dataset.active).toBe('');
+        expect(replayBtn()!.getAttribute('aria-pressed')).toBe('false');
+    });
+
+    it('lights up in the selection colours, not the faint hover grey', () => {
+        make({ onReplayClick: () => undefined });
+        const css = [...document.querySelectorAll('style')].map((s) => s.textContent).join('\n');
+        expect(css).toMatch(/\.vela-widget-replay\[data-active='1'\][^{]*\{[^}]*var\(--vela-selected-bg\)[^}]*var\(--vela-selected-fg\)/);
+    });
+});

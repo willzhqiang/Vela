@@ -139,3 +139,43 @@ describe('replay speeds', () => {
         expect(m.intervalMs).toBe(1000);
     });
 });
+
+import { placeBar, placementFromPixels, sanitizePlacement } from '../src/widget/replay-ui-model';
+
+describe('bar placement', () => {
+    const host = { w: 1000, h: 600 };
+    const bar = { w: 400, h: 40 };
+
+    it('turns fractions of the free space into pixels', () => {
+        expect(placeBar(host, bar, { fx: 0, fy: 0 })).toEqual({ left: 0, top: 0 });
+        expect(placeBar(host, bar, { fx: 1, fy: 1 })).toEqual({ left: 600, top: 560 });
+        expect(placeBar(host, bar, { fx: 0.5, fy: 0.5 })).toEqual({ left: 300, top: 280 });
+    });
+
+    it('keeps the bar inside a host that shrank', () => {
+        expect(placeBar({ w: 300, h: 30 }, bar, { fx: 0.5, fy: 0.5 })).toEqual({ left: 0, top: 0 }); // no free space at all
+    });
+
+    it('turns pixels back into fractions, clamped to the host', () => {
+        expect(placementFromPixels(host, bar, 300, 280)).toEqual({ fx: 0.5, fy: 0.5 });
+        expect(placementFromPixels(host, bar, -50, 9999)).toEqual({ fx: 0, fy: 1 });
+        expect(placementFromPixels(host, bar, 5000, -5)).toEqual({ fx: 1, fy: 0 });
+    });
+
+    it('round-trips through the fractions', () => {
+        const p = placementFromPixels(host, bar, 123, 456);
+        const px = placeBar(host, bar, p);
+        expect(px.left).toBeCloseTo(123, 6);
+        expect(px.top).toBeCloseTo(456, 6);
+    });
+
+    it('a host with no free space gives the origin, not NaN', () => {
+        expect(placementFromPixels({ w: 400, h: 40 }, bar, 10, 10)).toEqual({ fx: 0, fy: 0 });
+    });
+
+    it('accepts only two finite fractions from storage', () => {
+        expect(sanitizePlacement({ fx: 0.25, fy: 0.75 })).toEqual({ fx: 0.25, fy: 0.75 });
+        expect(sanitizePlacement({ fx: 2, fy: -1 })).toEqual({ fx: 1, fy: 0 });
+        for (const bad of [null, undefined, 3, 'x', {}, { fx: 'a', fy: 1 }, { fx: NaN, fy: 0 }, { fx: 0.5 }]) expect(sanitizePlacement(bad)).toBeNull();
+    });
+});

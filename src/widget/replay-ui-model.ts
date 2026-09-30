@@ -135,3 +135,38 @@ export class ReplayUiModel {
         return true;
     }
 }
+
+// ── where the floating bar sits ──
+
+/** The bar's spot as fractions (0..1) of the free space around it, so it survives a resized host. */
+export interface BarPlacement {
+    fx: number;
+    fy: number;
+}
+
+interface Size {
+    w: number;
+    h: number;
+}
+
+const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
+
+/** Pixel position of the bar's top-left corner inside `host`; never outside it. */
+export function placeBar(host: Size, bar: Size, p: BarPlacement): { left: number; top: number } {
+    return { left: clamp01(p.fx) * Math.max(0, host.w - bar.w), top: clamp01(p.fy) * Math.max(0, host.h - bar.h) };
+}
+
+/** The fractions for a bar dragged to `left`/`top` (clamped to the host; no free space ⇒ the origin). */
+export function placementFromPixels(host: Size, bar: Size, left: number, top: number): BarPlacement {
+    const freeW = host.w - bar.w;
+    const freeH = host.h - bar.h;
+    return { fx: freeW > 0 ? clamp01(left / freeW) : 0, fy: freeH > 0 ? clamp01(top / freeH) : 0 };
+}
+
+/** A stored placement, or null when it is not two finite numbers (values outside 0..1 are clamped). */
+export function sanitizePlacement(v: unknown): BarPlacement | null {
+    if (v === null || typeof v !== 'object') return null;
+    const { fx, fy } = v as { fx?: unknown; fy?: unknown };
+    if (typeof fx !== 'number' || typeof fy !== 'number' || !Number.isFinite(fx) || !Number.isFinite(fy)) return null;
+    return { fx: clamp01(fx), fy: clamp01(fy) };
+}
