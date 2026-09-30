@@ -1,7 +1,7 @@
 // DatePicker VIEW — a month calendar with month/year panel switches in its header.
 import { injectStyles } from '../../styles';
 import { iconEl } from '../../icons';
-import { datePickerController, WEEKDAY_LABELS, type DatePickerCell, type DatePickerControllerOptions } from './controller';
+import { datePickerController, type DatePickerCell, type DatePickerControllerOptions } from './controller';
 import { DATE_PICKER_CSS, DATE_PICKER_STYLE_ID } from './styles';
 
 export interface DatePickerOptions extends DatePickerControllerOptions {
@@ -46,7 +46,7 @@ export class DatePicker {
 
         this.week = doc.createElement('div');
         this.week.className = 'vela-date-picker-week';
-        for (const d of WEEKDAY_LABELS) {
+        for (const d of this.ctrl.weekdays()) {
             const cell = doc.createElement('span');
             cell.textContent = d;
             this.week.appendChild(cell);
@@ -76,9 +76,15 @@ export class DatePicker {
         return this.ctrl.value;
     }
 
-    /** Rewrite the selection without emitting (the calendar opens on its month). */
-    setValue(value: string | null): void {
-        this.ctrl.setValue(value);
+    /** Rewrite the selection without emitting. The calendar opens on its month unless `reveal` is false (the host already shows the month the user is on). */
+    setValue(value: string | null, reveal = true): void {
+        this.ctrl.setValue(value, reveal);
+        this.paint();
+    }
+
+    /** Mark a range of days (both ends inclusive; null clears it), opening on the month of its start. */
+    setRange(from: string | null, to: string | null, reveal = true): void {
+        this.ctrl.setRange(from, to, reveal);
         this.paint();
     }
 
@@ -92,6 +98,9 @@ export class DatePicker {
         const nav = this.ctrl.navLabels();
         this.prev.setAttribute('aria-label', nav.prev);
         this.next.setAttribute('aria-label', nav.next);
+        const limits = this.ctrl.nav();
+        this.prev.disabled = limits.prevDisabled;
+        this.next.disabled = limits.nextDisabled;
         const dates = this.ctrl.panel === 'date';
         this.week.hidden = !dates;
         this.grid.className = dates ? 'vela-date-picker-grid' : 'vela-date-picker-cells';
@@ -108,9 +117,17 @@ export class DatePicker {
         b.type = 'button';
         b.className = dates ? 'vela-date-picker-day' : 'vela-date-picker-cell';
         b.textContent = cell.label;
+        if (dates) b.dataset.day = String(cell.value);
         if (cell.checked) b.dataset.checked = '1';
         if (cell.today) b.dataset.today = '1';
         if (cell.outside) b.dataset.outside = '1';
+        if (cell.disabled) {
+            b.dataset.disabled = '1';
+            b.disabled = true;
+        }
+        if (cell.rangeStart) b.dataset.rangeStart = '1';
+        if (cell.rangeEnd) b.dataset.rangeEnd = '1';
+        if (cell.inRange) b.dataset.inRange = '1';
         b.addEventListener('click', (e) => {
             e.stopPropagation();
             const picked = this.ctrl.choose(cell);

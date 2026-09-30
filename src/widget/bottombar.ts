@@ -68,6 +68,21 @@ const CSS = `
 }
 .vela-bb-range:hover { background: var(--vela-hover); color: var(--vela-fg-bright); }
 .vela-bb-range[data-active='1'] { color: var(--vela-fg-bright); background: var(--vela-hover); }
+.vela-bb-sep { width: 1px; height: 18px; margin: 0 6px; background: var(--vela-border-strong); }
+.vela-bb-goto {
+    all: unset;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 24px;
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--vela-fg-muted);
+}
+.vela-bb-goto .vela-icon { font-size: 16px; width: 16px; height: 16px; }
+.vela-bb-goto:hover { background: var(--vela-hover); color: var(--vela-fg-bright); }
+.vela-bb-goto:focus-visible { outline: 2px solid var(--vela-focus); outline-offset: -2px; }
 .vela-bb-spacer { flex: 1 1 auto; }
 .vela-bb-clock { font-variant-numeric: tabular-nums; color: var(--vela-fg-bright); font-weight: 600; }
 .vela-bb-tz {
@@ -129,6 +144,8 @@ export interface BottombarOptions {
     /** RTH/ETH toggled by the user. Fires only while the toggle is ENABLED (see {@link Bottombar.setSession}). */
     onSession?: (session: 'regular' | 'extended') => void;
     onSettingsClick?: () => void;
+    /** The Go to date button after the range chips. No callback ⇒ no button. */
+    onGoToDate?: () => void;
 }
 
 export class Bottombar {
@@ -138,6 +155,7 @@ export class Bottombar {
     private readonly tzButton: HTMLElement;
     private readonly tzMenu: Menu;
     private readonly settingsTip: Tooltip | null = null;
+    private readonly gotoTip: Tooltip | null = null;
     private readonly rangeButtons = new Map<string, HTMLButtonElement>();
     private readonly sessionButtons = new Map<'regular' | 'extended', HTMLButtonElement>();
     private sessionEl: HTMLElement | null = null;
@@ -163,6 +181,19 @@ export class Bottombar {
             });
             this.rangeButtons.set(preset.id, b);
             this.el.appendChild(b);
+        }
+        if (opts.onGoToDate) {
+            const sep = doc.createElement('span');
+            sep.className = 'vela-bb-sep';
+            sep.setAttribute('aria-hidden', 'true');
+            const goto = doc.createElement('button');
+            goto.type = 'button';
+            goto.className = 'vela-bb-goto';
+            goto.appendChild(iconEl('calendar', doc));
+            goto.setAttribute('aria-label', 'Go to date');
+            goto.addEventListener('click', opts.onGoToDate);
+            this.gotoTip = new Tooltip(goto, { content: 'Go to date…', triggerId: 'vela-bb-goto', host });
+            this.el.append(sep, goto);
         }
         const spacer = doc.createElement('span');
         spacer.className = 'vela-bb-spacer';
@@ -268,6 +299,7 @@ export class Bottombar {
         this.unsubClock();
         this.tzMenu.destroy();
         this.settingsTip?.destroy();
+        this.gotoTip?.destroy();
         this.el.remove();
     }
 

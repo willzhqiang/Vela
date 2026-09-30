@@ -46,6 +46,7 @@ import { AxisScaleButtons, type AxisScaleView } from './chrome/AxisScaleButtons'
 import { NATIVE_CAPABILITIES, supportsWebGL2 } from './capabilities';
 import { WebGL2Backend } from './backend/WebGL2Backend';
 import { CoordinateSystem, type PaneBounds, type PriceScale } from './core/CoordinateSystem';
+import { maxRightOffset, reframeRightOffset } from './core/viewportLimits';
 import { Scheduler, InvalidateLevel, repaintsData, repaintsChrome } from './core/Scheduler';
 import { Animator, EaseSetting, easeToward } from './core/Animator';
 import { InputController } from './core/InputController';
@@ -2512,8 +2513,7 @@ export class NativeRenderer implements IChartRenderer {
         // right offset: the ONLY pan limit is keeping ≥ minVisible candles on screen. Panning left
         // can push the data far left (lots of right whitespace) until just minVisible remain; panning
         // right can scroll into the oldest bars until just minVisible remain at the right edge.
-        const visBars = W / (bs * scale);
-        const maxRo = visBars - (minVisible - 1); // slide left until exactly minVisible candles remain
+        const maxRo = maxRightOffset(W, bs, scale, n, MIN_VISIBLE_BARS); // slide left until exactly minVisible candles remain
         const minRo = minVisible - n; // slide right until exactly minVisible candles remain at the right edge
         const ro = Math.max(minRo, Math.min(maxRo, rightOffset));
         return { barSpacing: bs, rightOffset: ro };
@@ -3673,7 +3673,11 @@ export class NativeRenderer implements IChartRenderer {
         this.panVelocity = 0;
         for (const pane of this.scene.panes.values()) pane.manualScale = null; // re-frame ⇒ autoscale resumes
         for (const sl of this.scene.indicatorScales.values()) sl.manualScale = null;
-        const v: ViewportState = { barSpacing: clampBarSpacing(this.coords.getViewport().barSpacing), rightOffset: this.scene.style.margins.right };
+        const barSpacing = clampBarSpacing(this.coords.getViewport().barSpacing);
+        // The margin is skipped only when the zoom is so deep that it alone would fill the view
+        // (a chart synced to a few bars' width): the newest candles must stay on screen.
+        const rightOffset = reframeRightOffset(this.scene.style.margins.right, this.coords.width, barSpacing, this.coords.spacingScale, this.coords.barCount, MIN_VISIBLE_BARS);
+        const v: ViewportState = { barSpacing, rightOffset };
         this.coords.setViewport(v);
         this.targetBarSpacing = v.barSpacing;
     }

@@ -204,6 +204,8 @@ export interface TopbarOptions {
     onUndoClick?: () => void;
     onRedoClick?: () => void;
     onScreenshotClick?: () => void;
+    /** Toggles bar replay (choose a start / exit). No callback ⇒ no button. The pressed state is pushed with {@link Topbar.setReplayActive}. */
+    onReplayClick?: () => void;
     onAlertsClick?: (anchor: HTMLElement) => void;
     /** Live widget context for contributed actions (topbar target). */
     getContext?: () => WidgetContext;
@@ -238,6 +240,7 @@ export class Topbar {
     private undoBtn!: HTMLButtonElement;
     private redoBtn!: HTMLButtonElement;
     private alertsBtn!: HTMLButtonElement;
+    private replayBtn!: HTMLButtonElement;
     private panelBtns = new Map<string, HTMLButtonElement>();
     private panelTooltips: Tooltip[] = [];
     private readonly host: HTMLElement;
@@ -337,6 +340,9 @@ export class Topbar {
         }
         this.setHistoryState(false, false);
         const screenshotBtn = vis('screenshot') && !topbarActionOverride('screenshot') ? tool('vela-widget-screenshot', 'camera', 'Download screenshot', opts.onScreenshotClick) : null;
+        // Same detached-bare-button rule as the tools above, so setReplayActive stays a safe no-op.
+        const replayBtn = vis('replay') && opts.onReplayClick ? tool('vela-widget-replay', 'replay', 'Bar replay', opts.onReplayClick) : null;
+        this.replayBtn = replayBtn ?? doc.createElement('button');
         this.alertsBtn = vis('alerts') ? tool('vela-widget-alerts', 'bell', 'Alerts') : doc.createElement('button');
         this.alertsBtn.style.position = 'relative';
         if (opts.onAlertsClick) this.alertsBtn.addEventListener('click', () => opts.onAlertsClick!(this.alertsBtn));
@@ -401,6 +407,8 @@ export class Topbar {
                     return this.layoutButton ? [this.layoutButton] : [];
                 case 'indicators':
                     return overridden(id, left) ?? (indicatorsBtn ? [indicatorsBtn] : []);
+                case 'replay':
+                    return replayBtn ? [replayBtn] : [];
                 case 'actions':
                     return left ? [this.leftActionsHost, this.leftActionsSep] : [this.actionsHost];
                 case 'undo-redo':
@@ -645,6 +653,12 @@ export class Topbar {
             this.panelBtns.set(b.id, el);
             this.panelsHost.appendChild(el);
         }
+    }
+
+    /** Reflect bar replay on its button: pressed while a start is being chosen or a replay runs. */
+    setReplayActive(active: boolean): void {
+        this.replayBtn.dataset.active = active ? '1' : '';
+        this.replayBtn.setAttribute('aria-pressed', String(active));
     }
 
     /** Reflect a docked side panel's open state on its button — the panels toggle each other,

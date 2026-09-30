@@ -457,6 +457,16 @@ export class Vela {
         return this.orchestrator.goToDate(when instanceof Date ? when.getTime() : when, opts);
     }
 
+    /**
+     * Frame the bars between two instants (a reversed pair is swapped; epoch-ms or `Date`).
+     * Like {@link goToDate}, a start older than the loaded history is fetched first, and
+     * during a replay only the revealed bars are framed. An end outside the data clamps to
+     * the oldest or newest bar. Resolves once the frame is applied.
+     */
+    goToRange(from: number | Date, to: number | Date): Promise<void> {
+        return this.orchestrator.goToRange(from instanceof Date ? from.getTime() : from, to instanceof Date ? to.getTime() : to);
+    }
+
     resize(): void {
         this.orchestrator.resize();
     }

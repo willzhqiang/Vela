@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { frameAroundDate, barsNeededToReach, parseGoToDate, zonedWallToEpoch, DEFAULT_GOTO_BARS } from '../src/core/go-to-date';
+import { frameAroundDate, frameRange, barsNeededToReach, parseGoToDate, zonedWallToEpoch, zonedWallParts, DEFAULT_GOTO_BARS } from '../src/core/go-to-date';
 import type { OHLCV } from '../src/core/model/ohlcv';
 
 const bars = (n: number, step = 600_000, t0 = 1_700_000_000_000): OHLCV[] =>
@@ -102,5 +102,44 @@ describe('parseGoToDate', () => {
     it('echoes what it understood, in the zone', () => {
         expect(p('2026-06-15 10:30')?.label).toBe('2026-06-15 10:30 (America/New_York)');
         expect(p('06-15')?.label).toBe('2026-06-15 (America/New_York)');
+    });
+});
+
+describe('frameRange', () => {
+    const b = bars(1000);
+    it('frames from the first bar at-or-after `from` to the last bar at-or-before `to`', () => {
+        expect(frameRange(b, b[100]!.time - 1, b[200]!.time + 1)).toEqual({ from: b[100]!.time, to: b[200]!.time });
+        expect(frameRange(b, b[100]!.time, b[200]!.time)).toEqual({ from: b[100]!.time, to: b[200]!.time });
+    });
+    it('swaps a reversed range', () => {
+        expect(frameRange(b, b[200]!.time, b[100]!.time)).toEqual({ from: b[100]!.time, to: b[200]!.time });
+    });
+    it('clamps to the bars that exist', () => {
+        expect(frameRange(b, -1, b[10]!.time)).toEqual({ from: b[0]!.time, to: b[10]!.time });
+        expect(frameRange(b, b[990]!.time, b[999]!.time + 10 ** 12)).toEqual({ from: b[990]!.time, to: b[999]!.time });
+    });
+    it('a range with a single bar in it still frames two, so the view is not a sliver', () => {
+        const r = frameRange(b, b[500]!.time, b[500]!.time + 1)!;
+        expect(r.to).toBeGreaterThan(r.from);
+        expect(r.from <= b[500]!.time && b[500]!.time <= r.to).toBe(true);
+    });
+    it('a range that holds no bar frames the nearest bars after it', () => {
+        const day = 86_400_000;
+        const gapped = [...bars(20), ...bars(20, 600_000, 1_700_000_000_000 + 5 * day)];
+        const inGap = frameRange(gapped, gapped[19]!.time + day, gapped[19]!.time + 2 * day)!;
+        expect(inGap).toEqual({ from: gapped[20]!.time, to: gapped[21]!.time }); // the first bars after the hole
+    });
+    it('null for no bars or a non-finite bound', () => {
+        expect(frameRange([], 1, 2)).toBeNull();
+        expect(frameRange(b, NaN, 5)).toBeNull();
+        expect(frameRange(b, 5, Infinity)).toBeNull();
+    });
+});
+
+describe('zonedWallParts', () => {
+    it('reads the wall clock of an instant in a zone, and round-trips with zonedWallToEpoch', () => {
+        const ts = zonedWallToEpoch(2026, 6, 15, 10, 30, 'America/New_York');
+        expect(zonedWallParts(ts, 'America/New_York')).toEqual({ y: 2026, m: 6, d: 15, h: 10, mi: 30 });
+        expect(zonedWallParts(ts, 'UTC')).toEqual({ y: 2026, m: 6, d: 15, h: 14, mi: 30 });
     });
 });

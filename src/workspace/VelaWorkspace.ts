@@ -29,7 +29,8 @@ import { PanelDock } from '../widget/panel-dock';
 import { SymbolPicker } from '../widget/symbol-picker';
 import { IndicatorPicker } from '../widget/indicator-picker';
 import { TimeframeQuick } from '../widget/timeframe-quick';
-import { GoToDateDialog } from '../widget/go-to-date';
+import { GoToDialog } from '../widget/go-to';
+import { ReplayUi } from '../widget/replay-ui';
 import { ShortcutsHelp } from '../widget/shortcuts-help';
 import { Toast } from '../widget/toast';
 import { Glider, ZOOM_IN, ZOOM_OUT, PAN_FAST } from '../widget/glide';
@@ -304,7 +305,9 @@ export class VelaWorkspace {
     /** Null when the host disabled it (`indicatorPicker: false`). */
     private readonly indicatorPicker: IndicatorPicker | null;
     private readonly tfQuick: TimeframeQuick;
-    private readonly goToDateDialog: GoToDateDialog;
+    private readonly goToDateDialog: GoToDialog;
+    private readonly replayDateDialog: GoToDialog;
+    private replayUi!: ReplayUi;
     private shortcutsHelp: ShortcutsHelp | null = null;
     private readonly toastHost: Toast;
     private readonly glider = new Glider(() => (this.activeId ? (this.cellsById.get(this.activeId)?.chart ?? null) : null));
@@ -513,10 +516,12 @@ export class VelaWorkspace {
             onApply: (tf) => this.setActiveTimeframe(tf),
             onOpenChange: (open) => this.trackDialog(open),
         });
-        this.goToDateDialog = new GoToDateDialog({
+        this.goToDateDialog = new GoToDialog({
             host: this.root,
             zone: () => this.active.displayTimezone,
-            onApply: (ts) => void this.active.chart.goToDate(ts),
+            current: () => this.active.chart.getVisibleRange(),
+            onGoToDate: (ts) => void this.active.chart.goToDate(ts),
+            onGoToRange: (from, to) => void this.active.chart.goToRange(from, to),
             onOpenChange: (open) => this.trackDialog(open),
         });
 
@@ -531,6 +536,7 @@ export class VelaWorkspace {
             onUndoClick: () => this.active.history.undo(),
             onRedoClick: () => this.active.history.redo(),
             onScreenshotClick: () => this.downloadScreenshot(),
+            onReplayClick: () => this.replayUi.toggle(),
             onAlertsClick: (anchor) => this.openAlertsMenu(anchor),
             timeframe: '60',
             timeframes: opts.timeframes ?? DEFAULT_TIMEFRAMES,
@@ -608,6 +614,36 @@ export class VelaWorkspace {
         this.stripsEl.className = 'vela-ws-strips';
         this.root.appendChild(this.stripsEl);
         this.toastHost = new Toast(this.gridEl);
+        // Bar replay's chrome: the start-bar picker and control bar float in the grid; the date
+        // dialog is a second instance of the Go to dialog: one date, no range, worded for replay.
+        this.replayDateDialog = new GoToDialog({
+            host: this.root,
+            title: 'Replay from',
+            applyLabel: 'Start',
+            ranges: false,
+            zone: () => this.active.displayTimezone,
+            onGoToDate: (ts) => void this.replayUi.startFromDate(ts),
+            onOpenChange: (open) => this.trackDialog(open),
+        });
+        this.replayUi = new ReplayUi({
+            host: this.gridEl,
+            replay: this.replay,
+            cells: () => this.cells(),
+            activeId: () => this.activeId,
+            onCells: (handler) => {
+                const offs = [
+                    this.events.on('cell:created', ({ id }) => handler({ kind: 'created', id })),
+                    this.events.on('cell:destroyed', ({ id }) => handler({ kind: 'destroyed', id })),
+                    this.events.on('cell:active', ({ id }) => handler({ kind: 'active', id })),
+                ];
+                return () => {
+                    for (const off of offs) off();
+                };
+            },
+            openDatePicker: () => this.replayDateDialog.open(),
+            toast: (message, kind) => this.toast(message, kind),
+            onChange: (s) => this.topbar?.setReplayActive(s.phase !== 'idle'),
+        });
 
         // ONE attribution mark for the whole grid (bottom-left, floating above the
         // bottom-left cell's time axis) — the cells disable their per-chart marks, and
@@ -699,6 +735,7 @@ export class VelaWorkspace {
                       // are a per-chart market dimension, not a shell preference.
                       onSession: (session) => this.active.setSession(session),
                       onSettingsClick: () => this.active.chart.renderer.openSettings(),
+                      onGoToDate: () => this.goToDateDialog.open(),
                   })
                 : null;
 
@@ -1343,6 +1380,8 @@ export class VelaWorkspace {
         this.indicatorPicker?.destroy();
         this.tfQuick.destroy();
         this.goToDateDialog.destroy();
+        this.replayUi.destroy();
+        this.replayDateDialog.destroy();
         this.shortcutsHelp?.destroy();
         this.toastHost.destroy();
         this.alertsMenu?.destroy();

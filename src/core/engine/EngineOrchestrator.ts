@@ -29,7 +29,7 @@ import { LiveSession } from './LiveSession';
 import { IndicatorHandleImpl, type IndicatorController } from './IndicatorHandleImpl';
 import { inspectModels, type SceneInspection } from './inspect';
 import { presetToRange, type VisibleRangePreset } from '../visible-range';
-import { barsNeededToReach, frameAroundDate, type GoToDateOptions } from '../go-to-date';
+import { barsNeededToReach, frameAroundDate, frameRange, type GoToDateOptions } from '../go-to-date';
 import { DrawingController } from '../drawings/DrawingController';
 import { MarksController } from '../marks/MarksController';
 import { DrawingSeriesService } from './DrawingSeriesService';
@@ -2073,21 +2073,46 @@ export class EngineOrchestrator implements IndicatorController, PaneController, 
      */
     async goToDate(ts: number, opts: GoToDateOptions = {}): Promise<void> {
         if (!Number.isFinite(ts) || this.rawBars.length === 0) return;
+        if (!(await this.reachHistory(ts, opts.bars))) return;
+        const range = frameAroundDate(this.rawBars, ts, opts.bars);
+        if (range) this.renderer.setVisibleRange(range);
+    }
+
+    /**
+     * Frame the bars between two instants (a reversed pair is swapped). Like {@link goToDate}
+     * it deepens the history first when the start is older than what is loaded, and during a
+     * replay it frames only the bars revealed so far. An end outside the data clamps to the
+     * oldest or newest bar.
+     */
+    async goToRange(from: number, to: number): Promise<void> {
+        if (!Number.isFinite(from) || !Number.isFinite(to) || this.rawBars.length === 0) return;
+        if (!(await this.reachHistory(Math.min(from, to)))) return;
+        const range = frameRange(this.rawBars, from, to);
+        if (range) this.renderer.setVisibleRange(range);
+    }
+
+    /**
+     * Make sure the loaded history reaches back to `ts` when the source can serve it: wait
+     * for a backfill in flight, then deepen (a depth-only `setMarket`) sized from the density
+     * of the bars already loaded. A target past the source's genesis simply loads what
+     * exists. Never deepens during a replay. Resolves false when a market switch superseded
+     * the work, so the caller must not frame.
+     */
+    private async reachHistory(ts: number, frameBars?: number): Promise<boolean> {
         const gen = this.generation;
         if (this.replayQueue === null && ts < this.rawBars[0]!.time) {
             await this.historyCompletePromise;
-            if (this.generation !== gen || this.rawBars.length === 0) return; // superseded by a market switch
+            if (this.generation !== gen || this.rawBars.length === 0) return false; // superseded by a market switch
             if (ts < this.rawBars[0]!.time && this.canHeal() && typeof this.feed.loadRange === 'function') {
-                const bars = barsNeededToReach(this.rawBars, ts, opts.bars);
+                const bars = barsNeededToReach(this.rawBars, ts, frameBars);
                 const deepened = this.setMarket({ bars });
                 await deepened;
                 const gen2 = this.generation;
                 await this.historyCompletePromise;
-                if (this.generation !== gen2 || this.rawBars.length === 0) return;
+                if (this.generation !== gen2 || this.rawBars.length === 0) return false;
             }
         }
-        const range = frameAroundDate(this.rawBars, ts, opts.bars);
-        if (range) this.renderer.setVisibleRange(range);
+        return true;
     }
 
     /** Pan by a fraction of the visible width (positive ⇒ toward the latest bars).

@@ -2,6 +2,33 @@
 
 All notable changes to Vela, newest first.
 
+## [Unreleased]
+
+### Added
+
+- **Replay controls in the workspace.** A Replay button in the topbar
+  starts a replay without any code: a dashed line follows the pointer to the bar under it
+  with everything to its right veiled — mirrored on the other charts of a multi-chart layout —
+  and a click on a bar starts the replay there, paused. You can also type a date instead.
+  A floating bar then plays and pauses, steps one bar, switches between 1x, 3x and 10x, shows
+  how many bars are left, lets you choose another start, and exits back to the full history on
+  every chart. Start it from any chart: the others show the bars that had closed by then. The
+  `topbar` option's new `'replay'` entry removes the button.
+- **A full Go to dialog, with a button in the bottom bar.** A calendar button after the range
+  chips (and Alt+G) opens *Go to*: a Date tab with a day field, a time field and a month
+  calendar, and a Custom range tab where two clicks on the calendar choose a start and an end.
+  Days after today are not pickable, the week starts on Monday, and everything is read in the
+  chart's time zone. The new `chart.goToRange(from, to)` frames the bars between two instants,
+  loading older history first when needed. The replay's *Select date…* uses the same dialog
+  for a single date.
+
+### Fixed
+
+- **A chart zoomed in to a few bars no longer goes blank when its bars are replaced.** After a
+  symbol or timeframe switch, or a replay starting further back, a chart showing fewer bars
+  than its right margin held its newest candles outside the view and drew nothing. It now
+  keeps the newest candles on screen.
+
 ## [0.8.0]
 
 ### Added

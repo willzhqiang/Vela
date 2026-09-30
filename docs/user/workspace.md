@@ -217,6 +217,24 @@ The payload is the chart-level [`ScriptRun`](./api-reference.md#capturing-what-a
 plus `cell`; everything there — `cause`, `forming`, `plots`, `vars`, `strategy`, `trades()` —
 applies unchanged.
 
+## The Go to dialog
+
+The calendar button in the bottom bar (or **Alt+G**) opens *Go to*, which reads days and times on
+the active chart's wall clock in its display time zone. It has two tabs:
+
+- **Date** — a day and a time. Type them (`2026-06-15`, `06-15`, `yesterday`, or `2026-06-15 10:30`
+  in the date field; `9:30` or `0930` in the time field) or click a day in the month calendar, then
+  choose **Go to**: the chart frames about 120 bars around the nearest bar at or after that moment,
+  loading older history first when it has to.
+- **Custom range** — a start and an end, opened on what the chart shows now. Click two days on the
+  calendar (the first sets the start, the second the end, and an end before the start swaps them),
+  or type them; the days between are marked. **Go to** frames the bars from the start to the end
+  ([`goToRange`](./api-reference.md#core-methods)). An end before the start on the same day
+  disables the button and says why.
+
+Days after today cannot be picked. Enter applies, Escape closes, and Cancel leaves the chart as it
+was. While a replay runs, both tabs frame only the bars revealed so far.
+
 ## Bar replay across the grid
 
 `ws.replay` rewinds **every cell at once** and replays them on one clock. It takes the same
@@ -247,6 +265,25 @@ ws.replay.on('replay:step', ({ cursorTime, remaining }) => updateUi(cursorTime, 
 - **The state follows the active cell.** `state.active`, `playing` and `intervalMs` describe
   the whole workspace; `cursorTime`, `remaining` and `nextTime` (and `bounds`) read the
   active cell's chart, and the `replay:step` / `replay:tick` events report it.
+
+### The built-in replay controls
+
+The shell drives `ws.replay` for you. The **Replay** button in the topbar starts choosing where the replay begins:
+
+- **Pick a start bar.** A dashed vertical line follows the pointer to the bar under it, and
+  everything to its right is veiled. In a multi-chart layout the other charts mirror the line
+  at the same moment. Click a bar to start the replay there, or choose **Select date…** to type
+  a date. Escape (or **Cancel**) backs out.
+- **Play it back.** A floating bar offers play/pause, one step forward, the speed (1x, 3x and
+  10x, one bar every 1000, 333 and 100 ms) and how many bars are left. The replay starts
+  paused. The first button of the bar moves the start to another bar; the last one exits and
+  brings back the full history on every chart.
+- **Start from any chart.** The clicked chart's bar sets the shared replay time, and the other
+  charts show the bars that had closed by then.
+
+A replay started through the API shows the same bar, so the buttons and the code stay in sync.
+Hiding `'replay'` from the [topbar composition](#composing-the-topbar) removes the button.
+Replay has no keyboard shortcut.
 
 A contribution drives it as `ctx.replay`. Driving one cell's `chart.replay` directly still
 replays that chart alone. The cut rule is exported for interfaces that preview it:
@@ -493,7 +530,7 @@ they work from the very first keystroke, before any click.
   right edge instead of shrinking the chart, and a pin in its header docks it as a column
   whenever you prefer that. Which panel is open, the widths you dragged and the panels you
   pinned are part of the saved state.
-- **Bottom bar** — range chips, a live clock, and the timezone picker. Each chip switches
+- **Bottom bar** — range chips, a **Go to** button (the calendar icon; the same dialog as Alt+G), a live clock, and the timezone picker. Each chip switches
   the active chart's timeframe, **fetches the depth its window needs**, and frames it:
   `1D`→1m, `7D`→5m, `1M`→30m, `3M`→1h, `6M`→4h, `YTD`/`1Y`→1D, `5Y`/`ALL`→1W. Changing
   the timeframe by hand leaves range mode (the chip clears and the fetch depth returns
@@ -534,6 +571,7 @@ Entries come from one shared vocabulary:
 | `'style'` | The chart-style dropdown. |
 | `'layout'` | The layout dropdown (renders on multi-chart shells only). |
 | `'indicators'` | The Indicators slot — the built-in button, or a plugin's [slot override](../contributing/plugin-sdk.md#replacing-a-built-in-button--slot-overrides). Omitting it removes the button, the mobile stop, the `/` shortcut, and skips the picker dialog. |
+| `'replay'` | The bar-replay toggle: choose a start bar, then play, step, change speed or exit from the floating bar. |
 | `'undo-redo'` | The undo/redo pair. |
 | `'alerts'` | The alerts bell (badge included). |
 | `'panels'` | The side-panel toggle group (object tree, data window, contributed panels). |
