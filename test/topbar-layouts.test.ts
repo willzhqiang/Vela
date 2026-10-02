@@ -5,6 +5,8 @@ import { Topbar } from '../src/widget/topbar';
 import { resolveTopbarComposition } from '../src/widget/topbar-composition';
 
 (globalThis as { CSS?: unknown }).CSS ??= { escape: (v: string) => v };
+import { registerBuiltinLayouts } from '../src/workspace/layouts';
+registerBuiltinLayouts();
 (globalThis as { ResizeObserver?: unknown }).ResizeObserver ??= class {
     observe(): void {}
     unobserve(): void {}
@@ -54,7 +56,7 @@ describe('the layouts button', () => {
     });
 
     it('is placed on the right by default and removable by composition', () => {
-        expect(resolveTopbarComposition().right[0]).toBe('layouts');
+        expect(resolveTopbarComposition().right.slice(0, 2)).toEqual(['layout', 'layouts']);
         make({ onLayoutsClick: () => undefined, composition: { right: ['screenshot'] } });
         expect(btn()).toBeNull();
     });
@@ -98,5 +100,89 @@ describe('the replay button', () => {
         make({ onReplayClick: () => undefined });
         const css = [...document.querySelectorAll('style')].map((s) => s.textContent).join('\n');
         expect(css).toMatch(/\.vela-widget-replay\[data-active='1'\][^{]*\{[^}]*var\(--vela-selected-bg\)[^}]*var\(--vela-selected-fg\)/);
+    });
+});
+
+describe('the window-layout button', () => {
+    const layoutBtn = (): HTMLButtonElement | null => document.querySelector<HTMLButtonElement>('.vela-widget-layout');
+    const layoutOpt = (over: Record<string, unknown> = {}) => ({
+        current: '2h',
+        presets: () => [],
+        onSelectLayout: vi.fn(),
+        syncs: () => [{ id: 'symbol', label: 'Symbol', checked: false }],
+        onToggleSync: vi.fn(),
+        ...over,
+    });
+
+    it('is absent without a layout block (single-chart shells)', () => {
+        make();
+        expect(layoutBtn()).toBeNull();
+    });
+
+    it('shows a diagram of the current layout, one rectangle per window', () => {
+        make({ layout: layoutOpt() });
+        const b = layoutBtn()!;
+        expect(b.querySelectorAll('svg rect')).toHaveLength(2);
+        expect(b.getAttribute('aria-label')).toBe('Layout — 2 side by side');
+    });
+
+    it('follows setLayout with the new diagram and name', () => {
+        const { bar } = make({ layout: layoutOpt() });
+        bar.setLayout('bl3');
+        expect(layoutBtn()!.querySelectorAll('svg rect')).toHaveLength(3);
+        expect(layoutBtn()!.getAttribute('aria-label')).toMatch(/^Layout — 1 big/);
+    });
+
+    it('opens the picker, and a pick reaches the shell by id', () => {
+        const onSelectLayout = vi.fn();
+        make({ layout: layoutOpt({ onSelectLayout }) });
+        layoutBtn()!.click();
+        document.querySelector<HTMLElement>('.vela-lp-icon[data-layout="bt4"]')!.click();
+        expect(onSelectLayout).toHaveBeenCalledWith('bt4');
+    });
+
+    it('marks the current arrangement in the open picker after setLayout', () => {
+        const { bar } = make({ layout: layoutOpt() });
+        layoutBtn()!.click();
+        bar.setLayout('bl3');
+        expect(document.querySelector('.vela-lp-icon[data-current="1"]')!.getAttribute('data-layout')).toBe('bl3');
+    });
+});
+
+describe('placement of the window-layout button', () => {
+    const lay = { current: '2h', presets: () => [], onSelectLayout: () => undefined, syncs: () => [], onToggleSync: () => undefined };
+    const right = (): HTMLElement => document.querySelector<HTMLElement>('.vela-topbar-right')!;
+
+    it('sits in the right cluster, right before the saved-layouts button, with no divider between them', () => {
+        make({ layout: lay, onLayoutsClick: () => undefined });
+        const kids = [...right().children];
+        const iLayout = kids.findIndex((el) => el.classList.contains('vela-widget-layout'));
+        const iSaved = kids.findIndex((el) => el.classList.contains('vela-widget-layouts'));
+        expect(iLayout).toBeGreaterThanOrEqual(0);
+        expect(iSaved).toBe(iLayout + 1);
+    });
+
+    it('is not in the left cluster', () => {
+        make({ layout: lay, onLayoutsClick: () => undefined });
+        const left = [...document.querySelector('.vela-widget-topbar')!.children].filter((el) => el !== right());
+        expect(left.some((el) => el.classList.contains('vela-widget-layout'))).toBe(false);
+    });
+
+    it('keeps its place with no saved-layouts button (the right cluster simply starts with it)', () => {
+        make({ layout: lay });
+        expect(right().firstElementChild!.classList.contains('vela-widget-layout')).toBe(true);
+    });
+
+    it('a divider still follows it when something else comes next, and none trails the side', () => {
+        make({ layout: lay, composition: { right: ['layout', 'screenshot'] }, onScreenshotClick: () => undefined });
+        const kids = [...right().children];
+        expect(kids[0]!.classList.contains('vela-widget-layout')).toBe(true);
+        expect(kids[1]!.classList.contains('vela-sep')).toBe(true);
+    });
+
+    it('a host that lists it on the left gets the old placement', () => {
+        make({ layout: lay, composition: { left: ['symbol', 'layout', 'indicators'], right: [] } });
+        expect(right().querySelector('.vela-widget-layout')).toBeNull();
+        expect(document.querySelector('.vela-widget-layout')).not.toBeNull();
     });
 });

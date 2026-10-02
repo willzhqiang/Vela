@@ -63,6 +63,19 @@ describe('pinnedTopbarActionIds', () => {
     });
 });
 
+describe('where the layout buttons sit by default', () => {
+    it('the window-layout button is on the right, directly before the saved-layouts button', () => {
+        expect(TOPBAR_DEFAULT_LEFT).not.toContain('layout');
+        expect(TOPBAR_DEFAULT_RIGHT.slice(0, 2)).toEqual(['layout', 'layouts']);
+    });
+
+    it('a host can still put it back on the left', () => {
+        const comp = resolveTopbarComposition({ left: ['symbol', 'layout', 'indicators'] });
+        expect(comp.left).toEqual(['symbol', 'layout', 'indicators']);
+        expect(comp.right).not.toContain('layout'); // one entry renders once
+    });
+});
+
 describe('built-in slot overrides (registerWidgetAction under a built-in id)', () => {
     afterEach(() => {
         for (const id of ['indicators', 'screenshot']) unregisterWidgetAction(id);

@@ -78,6 +78,7 @@ import {
     type LayoutDefinition,
     type TrackSizes,
 } from './layouts';
+import { layoutCatalog } from './layout-catalog';
 import { SplitterLayer, evenTracks } from './splitters';
 import { compositeLayoutScreenshot, tilesFromCellRects, triggerPngDownload, type LayoutShotTile } from './screenshot';
 
@@ -127,6 +128,14 @@ export interface VelaWorkspaceOptions extends Omit<VelaOptions, 'height'>, VelaS
     maxWebglCells?: number;
     /** How many alerts the topbar bell keeps (the oldest drop beyond it). Default 50. */
     alertCap?: number;
+    /**
+     * Whether a window the layout picker ADDS opens with the manifest's `enabled` indicators
+     * (`indicators`). Default `false`: a new window opens clean — candles and volume — and you
+     * add what you want to it, as in TradingView. The windows the shell starts with and the ones
+     * declared in `cells` always seed the manifest; a window parked by a shrink returns with the
+     * indicators it had.
+     */
+    newWindowIndicators?: boolean;
     /**
      * Where saved chart layouts live (see {@link LayoutStore}). Given one, the topbar gets a
      * layouts button (current name, "Manage layouts" menu: save, autosave, copy, rename,
@@ -321,6 +330,12 @@ export class VelaWorkspace {
     private readonly goToDateDialog: GoToDialog;
     private readonly replayDateDialog: GoToDialog;
     private replayUi!: ReplayUi;
+    /** While a layout switch builds its new windows: the market they open on (the active window's), unless the host declared one for them. */
+    /** True while a layout SWITCH (not the boot) builds its new windows. */
+    private switching = false;
+    /** Windows a switch added before the shared manifest resolved — they stay bare when it does. */
+    private readonly bareCells = new Set<string>();
+    private inheritSeed: Pick<CellBoot, 'symbol' | 'timeframe' | 'session' | 'priceStyle'> | null = null;
     private layoutsCtl: LayoutsController | null = null;
     private layoutsMenu: LayoutsMenu | null = null;
     private layoutsUnsub: (() => void) | null = null;
@@ -571,12 +586,13 @@ export class VelaWorkspace {
             // button and no sync switches (see TopbarOptions.layout).
             layout: this.monoLayout ? undefined : {
                 current: this.def.id,
-                // The picker composes dynamic layouts on its grid canvas; registered
-                // presets the canvas cannot express (bespoke plugin areas) list as rows.
-                shape: () => layoutShape(this.def),
-                presets: () => layouts().filter((l) => layoutShape(l) === null).map((l) => ({ id: l.id, label: l.label })),
-                onSelectGrid: (rows, cols) => this.setLayout(layoutForGrid(rows, cols)),
-                onSelectPreset: (id) => this.setLayout(id),
+                // The picker offers its built-in catalogue (by window count); registered layouts
+                // the catalogue does not hold (plugins') list under "Custom".
+                presets: () => {
+                    const known = new Set(layoutCatalog().flatMap((g) => g.layouts.map((d) => d.id)));
+                    return layouts().filter((l) => !known.has(l.id)).map((l) => ({ id: l.id, label: l.label }));
+                },
+                onSelectLayout: (id) => this.setLayout(id),
                 // The SYNC switches reflect the simple all-cells form; flipping one
                 // OVERRIDES a host-set group record with plain on/off (groups stay an
                 // API-only shape).
@@ -584,6 +600,8 @@ export class VelaWorkspace {
                     { id: 'symbol', label: 'Symbol', checked: this.syncOpts.symbol === true },
                     { id: 'timeframe', label: 'Interval', checked: this.syncOpts.timeframe === true },
                     { id: 'crosshair', label: 'Crosshair', checked: this.syncOpts.crosshair === true },
+                    { id: 'viewport', label: 'Time', checked: this.syncOpts.viewport === true },
+                    { id: 'drawings', label: 'Drawings', checked: this.syncOpts.drawings === true },
                     { id: 'style', label: 'Style', checked: this.syncOpts.style === true },
                 ],
                 onToggleSync: (id) => {
@@ -832,7 +850,8 @@ export class VelaWorkspace {
                 if (this.destroyed) return;
                 this.manifest = list;
                 this.manifestSettled = true; // from here each cell's live instance set is the truth, empty included
-                for (const cell of this.cellsById.values()) cell.setManifest(list, true);
+                for (const cell of this.cellsById.values()) cell.setManifest(list, !this.bareCells.has(cell.id));
+                this.bareCells.clear();
                 this.projectActiveCell();
             });
         } else {
@@ -1292,6 +1311,11 @@ export class VelaWorkspace {
         const next = this.resolveLayout(layout);
         const nextBackend = this.backendFor(next);
         const rebuildAll = nextBackend !== this.cellBackend;
+        // A window the user adds opens on what they are looking at — the active window's symbol,
+        // timeframe, session and chart style — not on the app's startup defaults. Read before any
+        // cell is torn down (a backend change rebuilds them all).
+        const lead = this.activeId ? this.cellsById.get(this.activeId) : undefined;
+        const inherit = lead ? { symbol: lead.symbol, timeframe: lead.timeframe, session: lead.session, priceStyle: lead.priceStyle } : null;
         // The ACTIVE chart always survives a shrink — it moves into the last kept
         // slot instead of pooling, so changing the grid never hides the chart the
         // user is working in.
@@ -1312,7 +1336,14 @@ export class VelaWorkspace {
         this.def = next;
         this.cellBackend = nextBackend;
         this.applyGrid();
-        this.buildCells();
+        this.inheritSeed = inherit;
+        this.switching = true;
+        try {
+            this.buildCells();
+        } finally {
+            this.inheritSeed = null;
+            this.switching = false;
+        }
         this.alignNewCellStyles(preexisting);
         this.syncCellPresentation();
         this.refreshCellControls(); // the maximize gate follows the cell count
@@ -1732,7 +1763,7 @@ export class VelaWorkspace {
             }
             if (this.cellsById.has(id)) continue;
             const pooled = this.pool.get(id);
-            const seed: CellBoot = pooled ?? { ...seedDefaults(this.opts), ...(this.opts.cells?.[id] ?? {}) };
+            const seed: CellBoot = pooled ?? { ...seedDefaults(this.opts), ...(this.inheritSeed ?? {}), ...(this.opts.cells?.[id] ?? {}) };
             this.pool.delete(id); // the slot is live again — its pooled state is consumed
             const cell = new ChartCell(id, this.gridEl, seed, {
                 feed: this.feed,
@@ -1781,7 +1812,9 @@ export class VelaWorkspace {
             if (this.favs.length > 0) cell.chart.drawings.setFavorites(this.favs as never[]);
             // The indicator ledger: a restored cell re-adds ITS recorded set (held until
             // the manifest resolves); a fresh cell seeds the manifest's enabled entries.
-            cell.setManifest(this.manifest, pooled?.indicators == null);
+            const addedBySwitch = this.switching && pooled == null && this.opts.cells?.[id] === undefined && this.opts.newWindowIndicators !== true;
+            if (addedBySwitch) this.bareCells.add(id); // an unresolved manifest must not seed it later either
+            cell.setManifest(this.manifest, pooled?.indicators == null && !addedBySwitch);
             // Third-party state last — the cell is wired and its core state is in
             // place, so a handler's restore (e.g. re-adding external indicators) lands
             // on a cell the workspace fully knows. Runs muted (no undo entries).

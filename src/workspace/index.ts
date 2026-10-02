@@ -30,3 +30,5 @@ export type { WorkspaceState, CellState, ChartState, PanelsState, WorkspaceStora
 export { LayoutsController } from './LayoutsController';
 export type { LayoutsControllerOptions, LayoutsHost } from './LayoutsController';
 export type { LayoutStore, LayoutSummary, LayoutRecord, LayoutsStatus } from '../widget/layouts-model';
+export { layoutCatalog, layoutRects, catalogLayout, CATALOG_COUNTS } from './layout-catalog';
+export type { LayoutGroup, LayoutRect } from './layout-catalog';

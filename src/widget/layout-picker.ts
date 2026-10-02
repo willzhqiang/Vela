@@ -1,17 +1,21 @@
-// Layout picker — the topbar's LAYOUT dropdown. A bounded 4×4 grid canvas: hover
-// previews the full rows×cols rectangle from the top-left (the table-insert idiom);
-// a click applies it immediately. Registered layouts that are NOT expressible on the
-// canvas (bespoke plugin presets) list as labeled rows under it, and the workspace
-// SYNC switches sit beside the grid.
+// Layout picker — the topbar's LAYOUT dropdown. The windows of the chart area, chosen the way
+// a trader thinks of them: one row per window COUNT (1, 2, 3, 4 … 16), each with a small diagram
+// per arrangement (side by side, stacked, one big and the rest small …); the current one is
+// marked, a click applies it. Below sit the workspace SYNC switches, and — only when plugins
+// registered arrangements the catalogue does not know — a "Custom" list of labelled rows.
 //
 // The panel is a lightweight anchored popover (outside-pointerdown + Escape dismiss)
-// rather than a kit Menu: it mixes a canvas and switch rows, which is beyond the menu
+// rather than a kit Menu: it mixes diagram buttons and switch rows, which is beyond the menu
 // machine's item model. The host element provides the theme tokens (the panel portals
 // inside it, same as the menu positioner).
+//
+// The bare 4×4 canvas below (`layoutGridCanvas`) is still what the phone drawer taps.
 import { injectStyles } from '../ui/styles';
-import { Tooltip } from '../ui/components/tooltip';
+import { ensureLayout } from '../workspace/layouts';
+import { layoutCatalog, type LayoutGroup } from '../workspace/layout-catalog';
+import { layoutIconEl } from './layout-icon';
 
-const STYLE_ID = 'vela-widget-layout-picker-v14';
+const STYLE_ID = 'vela-widget-layout-picker-v15';
 // One monochrome selection language across the panel: lit cells and sync ON
 // switches both speak --vela-selected-*.
 const CSS = `
@@ -114,7 +118,35 @@ const CSS = `
     transition: transform 0.16s ease, background 0.16s ease;
 }
 .vela-lp-switch.on { background: var(--vela-selected-bg); border-color: var(--vela-selected-bg); }
+
 .vela-lp-switch.on::after { transform: translateX(16px); background: var(--vela-selected-fg); }
+
+/* ── the window-count list ── */
+.vela-lp--list { width: 408px; max-width: calc(100vw - 16px); padding: 6px 12px 8px; }
+.vela-lp-list { max-height: min(560px, calc(100vh - 260px)); overflow-y: auto; margin: 0 -4px; padding: 0 4px; }
+.vela-lp-row { display: flex; align-items: center; gap: 4px; padding: 5px 0; border-bottom: 1px solid var(--vela-border-faint); }
+.vela-lp-row:last-child { border-bottom: 0; }
+.vela-lp-count { flex: none; width: 28px; color: var(--vela-fg-muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.vela-lp-icons { display: flex; flex-wrap: wrap; gap: 4px; }
+.vela-lp-icon {
+    all: unset;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 32px;
+    border-radius: 5px;
+    color: var(--vela-fg-bright);
+    cursor: pointer;
+    transition: background var(--vela-dur-fast) var(--vela-ease);
+}
+.vela-lp-icon:hover { background: var(--vela-hover); }
+.vela-lp-icon:focus-visible { outline: 2px solid var(--vela-focus); outline-offset: -2px; }
+/* The current arrangement — the shared monochrome selection chip. */
+.vela-lp-icon[data-current='1'] { background: var(--vela-selected-bg); color: var(--vela-selected-fg); }
+.vela-lp-heading--section { margin: 12px 0 6px; padding: 0 2px; }
+.vela-lp-custom { margin-top: 4px; }
 `;
 
 /** The picker canvas is a fixed 4×4 — 16 cells, the workspace pool capacity. */
@@ -158,12 +190,14 @@ export interface LayoutPickerOptions {
     trigger: HTMLElement;
     /** Positioning/theming host (the widget root — the panel portals inside it). */
     host: HTMLElement;
-    /** Current layout's canvas shape (null = a preset the canvas cannot express). */
-    shape: () => LayoutPickerShape | null;
-    /** Registered layouts NOT expressible on the canvas — rendered as labeled rows. */
+    /** The arrangements to offer, grouped by window count (default: the built-in catalogue). */
+    groups?: () => LayoutGroup[];
+    /** The id of the layout showing now. */
+    current: () => string;
+    /** Registered layouts the catalogue does not hold (plugins') — rendered as labelled rows. */
     presets: () => Array<{ id: string; label: string; checked: boolean }>;
-    onSelectGrid: (rows: number, cols: number) => void;
-    onSelectPreset: (id: string) => void;
+    /** An arrangement was chosen (never called for the one already showing). */
+    onSelect: (id: string) => void;
     /** SYNC switch rows (re-read on every open and after every toggle). */
     syncs: () => Array<{ id: string; label: string; checked: boolean }>;
     onToggleSync: (id: string) => void;
@@ -174,16 +208,12 @@ export class LayoutPicker {
     private readonly opts: LayoutPickerOptions;
     private readonly doc: Document;
     private readonly layer: HTMLElement;
-    private readonly squares: HTMLButtonElement[] = []; // row-major, 16 entries
-    private readonly infoTip: Tooltip;
-    private readonly presetsEl: HTMLElement;
+    private readonly listEl: HTMLElement;
+    private readonly customEl: HTMLElement;
     private readonly syncEl: HTMLElement;
-
     private isOpen = false;
-    /** Hover preview (1-based rows/cols), null = show current shape. */
-    private hover: { rows: number; cols: number } | null = null;
 
-    private readonly onDocPointerDown = (e: PointerEvent): void => {
+    private readonly onDocPointerDown = (e: Event): void => {
         const t = e.target as Node | null;
         if (t && (this.layer.contains(t) || this.opts.trigger.contains(t))) return;
         this.close();
@@ -202,79 +232,19 @@ export class LayoutPicker {
         this.layer.className = 'vela-ui-layer vela-lp-layer';
         this.layer.style.display = 'none';
         const panel = doc.createElement('div');
-        panel.className = 'vela-lp';
+        panel.className = 'vela-lp vela-lp--list';
         this.layer.appendChild(panel);
 
-        const cols = doc.createElement('div');
-        cols.className = 'vela-lp-cols';
-        panel.appendChild(cols);
-
-        // ── left column: the LAYOUT canvas ──
-        const layoutCol = doc.createElement('div');
-        layoutCol.className = 'vela-lp-layout';
-        const layoutHeading = doc.createElement('div');
-        layoutHeading.className = 'vela-lp-heading';
-        const headingText = doc.createElement('span');
-        headingText.textContent = 'Layout';
-        const badge = doc.createElement('span');
-        badge.className = 'vela-lp-badge';
-        badge.textContent = '?';
-        layoutHeading.append(headingText, badge);
-        layoutCol.appendChild(layoutHeading);
-        this.infoTip = new Tooltip(badge, {
-            host: opts.host,
-            placement: 'bottom',
-            content: () => this.tipNode(),
-        });
-
-        const { el: grid, squares } = layoutGridCanvas(doc);
-        this.squares.push(...squares);
-        layoutCol.appendChild(grid);
-
-        this.presetsEl = doc.createElement('div');
-        this.presetsEl.className = 'vela-lp-presets';
-        layoutCol.appendChild(this.presetsEl);
-        cols.appendChild(layoutCol);
-
-        const vsep = doc.createElement('div');
-        vsep.className = 'vela-lp-vsep';
-        cols.appendChild(vsep);
-
-        // ── right column: the SYNC switches ──
-        const syncCol = doc.createElement('div');
+        this.listEl = doc.createElement('div');
+        this.listEl.className = 'vela-lp-list';
+        this.customEl = doc.createElement('div');
+        this.customEl.className = 'vela-lp-custom';
         const syncHeading = doc.createElement('div');
-        syncHeading.className = 'vela-lp-heading';
-        syncHeading.textContent = 'Sync';
-        syncCol.appendChild(syncHeading);
+        syncHeading.className = 'vela-lp-heading vela-lp-heading--section vela-lp-sync-heading';
+        syncHeading.textContent = 'Sync in layout';
         this.syncEl = doc.createElement('div');
         this.syncEl.className = 'vela-lp-sync';
-        syncCol.appendChild(this.syncEl);
-        cols.appendChild(syncCol);
-
-        // ── canvas interactions: hover previews the rectangle, click applies it ──
-        grid.addEventListener('pointerdown', (e) => {
-            const sq = this.squareAt(e);
-            if (!sq) return;
-            e.preventDefault();
-            const { r, c } = this.squarePos(sq);
-            this.close();
-            this.opts.onSelectGrid(r + 1, c + 1);
-        });
-        grid.addEventListener('pointermove', (e) => {
-            const sq = this.squareAt(e);
-            if (!sq) return;
-            const { r, c } = this.squarePos(sq);
-            if (this.hover?.rows !== r + 1 || this.hover?.cols !== c + 1) {
-                this.hover = { rows: r + 1, cols: c + 1 };
-                this.render();
-            }
-        });
-        grid.addEventListener('pointerleave', () => {
-            if (this.hover) {
-                this.hover = null;
-                this.render();
-            }
-        });
+        panel.append(this.listEl, this.customEl, syncHeading, this.syncEl);
 
         opts.trigger.addEventListener('click', () => this.toggle());
         opts.trigger.setAttribute('aria-haspopup', 'true');
@@ -290,8 +260,7 @@ export class LayoutPicker {
     open(): void {
         if (this.isOpen) return;
         this.isOpen = true;
-        this.hover = null;
-        this.refresh();
+        this.render();
         this.layer.style.display = '';
         this.position();
         this.opts.trigger.setAttribute('aria-expanded', 'true');
@@ -310,59 +279,80 @@ export class LayoutPicker {
         this.opts.onOpenChange?.(false);
     }
 
-    /** Re-read shape/presets/syncs and re-render (no-op while closed — `open` re-reads). */
+    /** Re-read the current layout, presets and syncs (no-op while closed — `open` re-reads). */
     refresh(): void {
-        if (!this.isOpen) return;
-        this.renderPresets();
-        this.renderSyncs();
-        this.render();
+        if (this.isOpen) this.render();
     }
 
     destroy(): void {
         this.close();
-        this.infoTip.destroy();
         this.layer.remove();
     }
 
     // ── internals ──
-    private squareAt(e: PointerEvent): HTMLButtonElement | null {
-        const sq = (e.target as Element | null)?.closest?.('.vela-lp-sq');
-        return sq instanceof HTMLButtonElement ? sq : null;
-    }
-
-    private squarePos(sq: HTMLButtonElement): { r: number; c: number } {
-        return { r: Number(sq.dataset.r), c: Number(sq.dataset.c) };
-    }
-
-    /** Help copy for the LAYOUT "?" badge. */
-    private tipNode(): HTMLElement {
-        const tip = this.doc.createElement('div');
-        tip.className = 'vela-lp-tip';
-        tip.textContent = 'Click a square to apply that columns × rows layout.';
-        return tip;
-    }
-
-    /** Project the interaction state onto the DOM (the hover/current rectangle). */
     private render(): void {
-        paintLayoutGrid(this.squares, this.hover ?? this.opts.shape());
+        this.renderList();
+        this.renderCustom();
+        this.renderSyncs();
     }
 
-    private renderPresets(): void {
+    private renderList(): void {
         const doc = this.doc;
-        this.presetsEl.replaceChildren();
+        const current = this.opts.current();
+        const groups = this.opts.groups ? this.opts.groups() : layoutCatalog();
+        this.listEl.replaceChildren(
+            ...groups.map((g) => {
+                const row = doc.createElement('div');
+                row.className = 'vela-lp-row';
+                const count = doc.createElement('span');
+                count.className = 'vela-lp-count';
+                count.textContent = String(g.count);
+                const icons = doc.createElement('div');
+                icons.className = 'vela-lp-icons';
+                for (const def of g.layouts) {
+                    const b = doc.createElement('button');
+                    b.type = 'button';
+                    b.className = 'vela-lp-icon';
+                    b.dataset.layout = def.id;
+                    b.setAttribute('aria-label', `${g.count} ${g.count === 1 ? 'window' : 'windows'}: ${def.label}`);
+                    b.title = def.label;
+                    const isCurrent = def.id === current;
+                    b.setAttribute('aria-pressed', String(isCurrent));
+                    if (isCurrent) b.dataset.current = '1';
+                    b.appendChild(layoutIconEl(doc, ensureLayout(def.id) ?? def));
+                    b.addEventListener('click', () => this.choose(def.id));
+                    icons.appendChild(b);
+                }
+                row.append(count, icons);
+                return row;
+            }),
+        );
+    }
+
+    private renderCustom(): void {
+        const doc = this.doc;
         const presets = this.opts.presets();
-        this.presetsEl.style.display = presets.length > 0 ? '' : 'none';
+        this.customEl.replaceChildren();
+        this.customEl.style.display = presets.length > 0 ? '' : 'none';
+        if (presets.length === 0) return;
+        const heading = doc.createElement('div');
+        heading.className = 'vela-lp-heading vela-lp-heading--section vela-lp-custom-heading';
+        heading.textContent = 'Custom';
+        this.customEl.appendChild(heading);
         for (const p of presets) {
             const b = doc.createElement('button');
             b.className = 'vela-lp-preset';
             b.textContent = p.label;
             if (p.checked) b.dataset.checked = '1';
-            b.addEventListener('click', () => {
-                this.close();
-                this.opts.onSelectPreset(p.id);
-            });
-            this.presetsEl.appendChild(b);
+            b.addEventListener('click', () => this.choose(p.id));
+            this.customEl.appendChild(b);
         }
+    }
+
+    private choose(id: string): void {
+        const already = id === this.opts.current();
+        this.close();
+        if (!already) this.opts.onSelect(id);
     }
 
     private renderSyncs(): void {
