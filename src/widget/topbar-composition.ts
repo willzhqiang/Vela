@@ -31,10 +31,11 @@ export interface TopbarComposition {
 export const TOPBAR_BUILTIN_IDS = ['symbol', 'timeframes', 'style', 'layout', 'indicators', 'replay', 'layouts', 'actions', 'undo-redo', 'alerts', 'panels', 'screenshot'] as const;
 
 /** The default left side — the current shell composition, verbatim. */
-export const TOPBAR_DEFAULT_LEFT: readonly string[] = ['symbol', 'timeframes', 'style', 'layout', 'indicators', 'replay', 'actions', 'undo-redo'];
+export const TOPBAR_DEFAULT_LEFT: readonly string[] = ['symbol', 'timeframes', 'style', 'indicators', 'replay', 'actions', 'undo-redo'];
 
-/** The default right side (the `margin-left: auto` cluster). */
-export const TOPBAR_DEFAULT_RIGHT: readonly string[] = ['layouts', 'actions', 'alerts', 'panels', 'screenshot'];
+/** The default right side (the `margin-left: auto` cluster). The two layout buttons lead it, side by side: the window layout
+ *  (how many charts, arranged how) and then the saved layout's name — where traders look for them. */
+export const TOPBAR_DEFAULT_RIGHT: readonly string[] = ['layout', 'layouts', 'actions', 'alerts', 'panels', 'screenshot'];
 
 /** A composition with both sides resolved (defaults applied, duplicates dropped). */
 export interface ResolvedTopbarComposition {
