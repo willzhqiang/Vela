@@ -12,7 +12,9 @@ All notable changes to Vela, newest first.
   six, and one big window with the rest small (left, right, top or bottom). The current one is
   marked, a click applies it, and the *Sync in layout* switches (Symbol, Interval, Crosshair, Time,
   Drawings, Style) sit below. A window added by the switch opens on the active window's symbol and
-  timeframe. `layoutCatalog()` and `layoutRects()` are exported; the phone drawer keeps its tap grid.
+  timeframe, and opens without the manifest's default indicators (the new `newWindowIndicators`
+  option brings them back). `layoutCatalog()` and `layoutRects()` are exported; the phone drawer
+  keeps its tap grid.
 - **Replay bar polish.** The topbar's Replay button is labelled and lights up in the selection
   colours while a start is being chosen or a replay runs. A dashed vertical line keeps the bar
   the replay started on marked on every chart (`replayStart` renderer feature). The floating

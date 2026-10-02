@@ -129,6 +129,14 @@ export interface VelaWorkspaceOptions extends Omit<VelaOptions, 'height'>, VelaS
     /** How many alerts the topbar bell keeps (the oldest drop beyond it). Default 50. */
     alertCap?: number;
     /**
+     * Whether a window the layout picker ADDS opens with the manifest's `enabled` indicators
+     * (`indicators`). Default `false`: a new window opens clean — candles and volume — and you
+     * add what you want to it, as in TradingView. The windows the shell starts with and the ones
+     * declared in `cells` always seed the manifest; a window parked by a shrink returns with the
+     * indicators it had.
+     */
+    newWindowIndicators?: boolean;
+    /**
      * Where saved chart layouts live (see {@link LayoutStore}). Given one, the topbar gets a
      * layouts button (current name, "Manage layouts" menu: save, autosave, copy, rename,
      * download chart data, new layout, recently used, the full list) and the workspace opens
@@ -323,6 +331,10 @@ export class VelaWorkspace {
     private readonly replayDateDialog: GoToDialog;
     private replayUi!: ReplayUi;
     /** While a layout switch builds its new windows: the market they open on (the active window's), unless the host declared one for them. */
+    /** True while a layout SWITCH (not the boot) builds its new windows. */
+    private switching = false;
+    /** Windows a switch added before the shared manifest resolved — they stay bare when it does. */
+    private readonly bareCells = new Set<string>();
     private inheritSeed: Pick<CellBoot, 'symbol' | 'timeframe' | 'session' | 'priceStyle'> | null = null;
     private layoutsCtl: LayoutsController | null = null;
     private layoutsMenu: LayoutsMenu | null = null;
@@ -838,7 +850,8 @@ export class VelaWorkspace {
                 if (this.destroyed) return;
                 this.manifest = list;
                 this.manifestSettled = true; // from here each cell's live instance set is the truth, empty included
-                for (const cell of this.cellsById.values()) cell.setManifest(list, true);
+                for (const cell of this.cellsById.values()) cell.setManifest(list, !this.bareCells.has(cell.id));
+                this.bareCells.clear();
                 this.projectActiveCell();
             });
         } else {
@@ -1324,10 +1337,12 @@ export class VelaWorkspace {
         this.cellBackend = nextBackend;
         this.applyGrid();
         this.inheritSeed = inherit;
+        this.switching = true;
         try {
             this.buildCells();
         } finally {
             this.inheritSeed = null;
+            this.switching = false;
         }
         this.alignNewCellStyles(preexisting);
         this.syncCellPresentation();
@@ -1797,7 +1812,9 @@ export class VelaWorkspace {
             if (this.favs.length > 0) cell.chart.drawings.setFavorites(this.favs as never[]);
             // The indicator ledger: a restored cell re-adds ITS recorded set (held until
             // the manifest resolves); a fresh cell seeds the manifest's enabled entries.
-            cell.setManifest(this.manifest, pooled?.indicators == null);
+            const addedBySwitch = this.switching && pooled == null && this.opts.cells?.[id] === undefined && this.opts.newWindowIndicators !== true;
+            if (addedBySwitch) this.bareCells.add(id); // an unresolved manifest must not seed it later either
+            cell.setManifest(this.manifest, pooled?.indicators == null && !addedBySwitch);
             // Third-party state last — the cell is wired and its core state is in
             // place, so a handler's restore (e.g. re-adding external indicators) lands
             // on a cell the workspace fully knows. Runs muted (no undo entries).
