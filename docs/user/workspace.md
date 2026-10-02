@@ -624,7 +624,7 @@ option is pure opt-in, and a shell without it behaves exactly as before.
 ```ts
 new VelaWorkspace('#chart', {
     topbar: {
-        // right undeclared ⇒ default right side (layouts, actions, alerts, panels, screenshot)
+        // right undeclared ⇒ default right side (layout, layouts, actions, alerts, panels, screenshot)
         left: ['symbol', 'timeframes', 'style', 'my-plugin.indicator-menu.open', 'undo-redo'],
     },
 });
@@ -637,7 +637,7 @@ Entries come from one shared vocabulary:
 | `'symbol'` | The symbol button (opens the search). |
 | `'timeframes'` | The favorite chips + timeframe dropdown group. |
 | `'style'` | The chart-style dropdown. |
-| `'layout'` | The layout button and its dropdown (not rendered in single-chart mode, `layout: false`). |
+| `'layout'` | The window-layout button and its dropdown (not rendered in single-chart mode, `layout: false`). On the right by default, directly before `'layouts'`; list it on the left to move it. |
 | `'indicators'` | The Indicators slot — the built-in button, or a plugin's [slot override](../contributing/plugin-sdk.md#replacing-a-built-in-button--slot-overrides). Omitting it removes the button, the mobile stop, the `/` shortcut, and skips the picker dialog. |
 | `'replay'` | The bar-replay toggle: choose a start bar, then play, step, change speed or exit from the floating bar. |
 | `'undo-redo'` | The undo/redo pair. |

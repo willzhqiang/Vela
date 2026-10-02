@@ -466,7 +466,9 @@ export class Topbar {
                 const els = elementsFor(id, left);
                 if (els.length === 0) continue;
                 out.push(...els);
-                if (primaries.has(id) && i < list.length - 1) out.push(sep());
+                // The window layout and the saved layout's name read as one control: no hairline between them.
+                const joined = id === 'layout' && list[i + 1] === 'layouts';
+                if (primaries.has(id) && i < list.length - 1 && !joined) out.push(sep());
             }
             return out;
         };
