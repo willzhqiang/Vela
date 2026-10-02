@@ -206,10 +206,9 @@ describe('surface open/close events', () => {
         const picker = new LayoutPicker({
             trigger: button(host),
             host,
-            shape: () => ({ rows: 1, cols: 1 }),
+            current: () => '1',
             presets: () => [],
-            onSelectGrid: () => {},
-            onSelectPreset: () => {},
+            onSelect: () => {},
             syncs: () => [],
             onToggleSync: () => {},
             onOpenChange: (open) => told.push(open),
@@ -296,18 +295,17 @@ describe('surface open/close events', () => {
         const picker = new LayoutPicker({
             trigger,
             host,
-            shape: () => ({ rows: 1, cols: 1 }),
+            current: () => '1',
             presets: () => [],
-            onSelectGrid: () => {},
-            onSelectPreset: () => {},
+            onSelect: () => {},
             syncs: () => [],
             onToggleSync: () => {},
         });
         picker.open();
         picker.close();
         expect(heard.map((h) => [h.type, h.kind, h.target.className, h.trigger === trigger, h.showing])).toEqual([
-            ['vela:surface-open', 'popover', 'vela-lp', true, true],
-            ['vela:surface-close', 'popover', 'vela-lp', true, true],
+            ['vela:surface-open', 'popover', 'vela-lp vela-lp--list', true, true],
+            ['vela:surface-close', 'popover', 'vela-lp vela-lp--list', true, true],
         ]);
         picker.destroy();
         expect(heard).toHaveLength(2);

@@ -39,6 +39,7 @@ export interface LayoutDefinition {
 // TrackSizes is part of the shared state document (`src/state/document.ts`).
 import type { TrackSizes } from '../state/document';
 import { svg16 } from '../core/icons';
+import { catalogLayout } from './layout-catalog';
 
 export type { TrackSizes } from '../state/document';
 
@@ -132,7 +133,7 @@ export function ensureLayout(id: string): LayoutDefinition | undefined {
     if (registered) return registered;
     const g = GRID_ID_RE.exec(id);
     if (g) return layoutForGrid(Number(g[1]), Number(g[2]));
-    return undefined;
+    return catalogLayout(id); // the picker catalogue's own arrangements (one-big, rows of five…)
 }
 
 /** A layout's shape on the picker canvas. */
