@@ -124,7 +124,11 @@ Drawings, Style), and — only when plugins registered arrangements the catalogu
 
 A window the switch adds opens on what you are looking at: the active window's symbol,
 timeframe, session and chart style (windows the host declared in `cells` keep their own).
-Shrinking parks a window's state, and growing again brings it back as it was.
+A new window also opens **clean** — candles and volume, none of the manifest's `enabled`
+indicators — and you add what you want to it; set `newWindowIndicators: true` to give it the
+manifest's indicators as before. (The windows the shell starts with and the ones declared in
+`cells` always seed the manifest.) Shrinking parks a window's state, and growing again brings it
+back as it was, indicators included.
 
 Ids: plain grids keep the registry's (`1`, `2h`, `2v`, `4`, `8`) or self-describing dynamic ones
 (`g3x2` = 3 rows × 2 columns), and the catalogue's own arrangements are `bl3`…`bl8`, `br3`…`br6`,
