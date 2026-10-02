@@ -2,7 +2,9 @@
 // every chart type registered through the plugin SDK, labels from the registry).
 import { Menu, type MenuItemDescriptor } from '../ui/components/menu';
 import { Tooltip } from '../ui/components/tooltip';
-import { LayoutPicker, type LayoutPickerShape } from './layout-picker';
+import { LayoutPicker } from './layout-picker';
+import { layoutIconEl } from './layout-icon';
+import { ensureLayout } from '../workspace/layouts';
 import { iconEl, iconMarkup, registerIcon } from '../ui/icons';
 import { injectStyles } from '../ui/styles';
 import { chartType } from '../chart-types/registry';
@@ -53,6 +55,7 @@ const CSS = `
 }
 /* The layouts button: the layout's name (ellipsized), a dot while it has unsaved changes, a chevron. */
 .vela-widget-layouts { max-width: 220px; }
+.vela-widget-layout .vela-layout-icon { width: 24px; height: 18px; }
 .vela-widget-layouts-name { overflow: hidden; text-overflow: ellipsis; }
 .vela-widget-layouts[data-dirty='1'] .vela-widget-layouts-name::after { content: ' •'; color: var(--vela-fg-muted); }
 .vela-widget-layouts .vela-icon { flex: none; color: var(--vela-fg-muted); }
@@ -195,12 +198,10 @@ export interface TopbarOptions {
      *  layouts and setting flips appear automatically. */
     layout?: {
         current: string;
-        /** Current layout's picker-canvas shape (null = not canvas-expressible). */
-        shape: () => LayoutPickerShape | null;
-        /** Registered layouts the canvas cannot express — rendered as labeled rows. */
+        /** Registered layouts the built-in catalogue does not hold (plugins') — rendered as labeled rows. */
         presets: () => Array<{ id: string; label: string }>;
-        onSelectGrid: (rows: number, cols: number) => void;
-        onSelectPreset: (id: string) => void;
+        /** An arrangement was picked (a catalogue id, a plugin's, or a `g<rows>x<cols>` grid). */
+        onSelectLayout: (id: string) => void;
         /** SYNC switch rows (re-read on every open and after each toggle). */
         syncs: () => Array<{ id: string; label: string; checked: boolean }>;
         onToggleSync: (id: string) => void;
@@ -390,7 +391,7 @@ export class Topbar {
         if (opts.layout && vis('layout')) {
             this.layoutId = opts.layout.current;
             this.layoutButton = doc.createElement('button');
-            this.layoutButton.className = 'vela-widget-style';
+            this.layoutButton.className = 'vela-widget-style vela-widget-layout';
             this.renderLayoutButton(doc);
         }
 
@@ -490,10 +491,9 @@ export class Topbar {
             this.layoutPicker = new LayoutPicker({
                 trigger: this.layoutButton,
                 host,
-                shape: () => layout.shape(),
+                current: () => this.layoutId ?? '',
                 presets: () => layout.presets().map((p) => ({ ...p, checked: p.id === this.layoutId })),
-                onSelectGrid: (rows, cols) => layout.onSelectGrid(rows, cols),
-                onSelectPreset: (id) => layout.onSelectPreset(id),
+                onSelect: (id) => layout.onSelectLayout(id),
                 syncs: () => layout.syncs(),
                 onToggleSync: (id) => layout.onToggleSync(id),
             });
@@ -588,11 +588,13 @@ export class Topbar {
     private renderLayoutButton(doc: Document): void {
         if (!this.layoutButton) return;
         this.layoutButton.replaceChildren();
-        // Icon when a 'layout' icon is registered (the workspace registers one);
-        // otherwise fall back to the current layout id as text.
-        if (iconMarkup('layout')) this.layoutButton.appendChild(iconEl('layout', doc));
+        // The button wears a diagram of the current layout (one rectangle per window); a layout the
+        // registry does not know falls back to the generic icon, then to its id as text.
+        const def = this.layoutId ? ensureLayout(this.layoutId) : undefined;
+        if (def) this.layoutButton.appendChild(layoutIconEl(doc, def));
+        else if (iconMarkup('layout')) this.layoutButton.appendChild(iconEl('layout', doc));
         else this.layoutButton.appendChild(doc.createTextNode(this.layoutId ?? ''));
-        this.layoutButton.setAttribute('aria-label', `Layout — ${this.layoutId ?? ''}`);
+        this.layoutButton.setAttribute('aria-label', `Layout — ${def?.label ?? this.layoutId ?? ''}`);
     }
 
     private renderStyleButton(doc: Document): void {

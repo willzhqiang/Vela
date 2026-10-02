@@ -113,15 +113,26 @@ layout (`cell:destroyed`). Host code that tracks cells should **follow
 `setLayout` (or a restored document) mints cells that a one-time snapshot never sees.
 
 Layouts live in a registry (`registerLayout` from `@luxalgo/vela/workspace`), and the topbar's
-**layout dropdown** composes them on a 4×4 grid canvas: hover previews the full
-*columns × rows* rectangle from the top-left (the table-insert idiom); a click
-applies it immediately. Rectangles matching a classic preset (`1`, `2h`, `2v`, `4`,
-`8`) reuse it; anything else gets a self-describing dynamic id (`g3x2` = 3 rows ×
-2 columns) that resolves without registration (persisted picks restore across boots).
-Plugin layouts the canvas cannot express (bespoke `areas`) list as labeled rows under
-the canvas, so `registerLayout` contributions keep appearing automatically. In code,
-the same composition is `layoutForGrid(rows, cols)` (exported from `@luxalgo/vela/workspace`),
-handed to `ws.setLayout(...)`.
+**layout button** (it wears a diagram of the current arrangement) opens a dropdown that lists
+them by **window count** — one row each for 1, 2, 3, 4, 5, 6, 7, 8, 9, 12 and 16 — with a small
+diagram per arrangement: side by side, stacked, grids up to 4×4, rows of five or six, and "one big
+window with the rest small" (on the left, right, top or bottom). The current one is marked; a click
+applies it at once. The diagrams are drawn from each layout's own geometry, so a plugin's layout
+gets one too. Under the list sit the **Sync in layout** switches (Symbol, Interval, Crosshair, Time,
+Drawings, Style), and — only when plugins registered arrangements the catalogue does not hold — a
+**Custom** list of labelled rows.
+
+A window the switch adds opens on what you are looking at: the active window's symbol,
+timeframe, session and chart style (windows the host declared in `cells` keep their own).
+Shrinking parks a window's state, and growing again brings it back as it was.
+
+Ids: plain grids keep the registry's (`1`, `2h`, `2v`, `4`, `8`) or self-describing dynamic ones
+(`g3x2` = 3 rows × 2 columns), and the catalogue's own arrangements are `bl3`…`bl8`, `br3`…`br6`,
+`bt3`…`bt8`, `bb3`…`bb6` (one big window at the left / right / top / bottom of *n* windows),
+`t2b3` and `h5`/`v5`/`h6`/`v6`. All of them resolve without registration, so persisted picks
+restore across boots. In code: `layoutCatalog()` (the list the dropdown shows), `layoutForGrid(rows,
+cols)` and `layoutRects(def)` (each window's `[x, y, w, h]` as fractions of the grid) are exported
+from `@luxalgo/vela/workspace`, and a pick is `ws.setLayout(id)`.
 
 Splitters between cells resize the grid tracks (double-click a divider for an even
 split).
@@ -183,7 +194,7 @@ it belongs to the group). Candle colors, line width, and other series settings s
 per cell, and the display timezone and theme are already workspace-global, so
 neither rides this link.
 
-**Symbol**, **Interval** (timeframe), **Crosshair** and **Style** are also switches
+**Symbol**, **Interval** (timeframe), **Crosshair**, **Time** (`viewport`), **Drawings** and **Style** are also switches
 in the topbar's layout dropdown (its SYNC section), and **Drawings** is a toggle on
 the shared drawing toolbar (the pen-with-panes icon under stay-in-drawing-mode). A
 switch reflects the simple all-cells form (`true`/off); flipping one overrides a
@@ -622,7 +633,7 @@ Entries come from one shared vocabulary:
 | `'symbol'` | The symbol button (opens the search). |
 | `'timeframes'` | The favorite chips + timeframe dropdown group. |
 | `'style'` | The chart-style dropdown. |
-| `'layout'` | The layout dropdown (renders on multi-chart shells only). |
+| `'layout'` | The layout button and its dropdown (not rendered in single-chart mode, `layout: false`). |
 | `'indicators'` | The Indicators slot — the built-in button, or a plugin's [slot override](../contributing/plugin-sdk.md#replacing-a-built-in-button--slot-overrides). Omitting it removes the button, the mobile stop, the `/` shortcut, and skips the picker dialog. |
 | `'replay'` | The bar-replay toggle: choose a start bar, then play, step, change speed or exit from the floating bar. |
 | `'undo-redo'` | The undo/redo pair. |

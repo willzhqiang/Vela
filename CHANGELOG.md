@@ -6,6 +6,13 @@ All notable changes to Vela, newest first.
 
 ### Added
 
+- **A layout picker that splits the chart area the TradingView way.** The topbar's layout button
+  now wears a diagram of the current arrangement, and its dropdown lists the layouts by window
+  count (1, 2, 3 … 9, 12, 16), a diagram for each: side by side, stacked, grids, rows of five or
+  six, and one big window with the rest small (left, right, top or bottom). The current one is
+  marked, a click applies it, and the *Sync in layout* switches (Symbol, Interval, Crosshair, Time,
+  Drawings, Style) sit below. A window added by the switch opens on the active window's symbol and
+  timeframe. `layoutCatalog()` and `layoutRects()` are exported; the phone drawer keeps its tap grid.
 - **Replay bar polish.** The topbar's Replay button is labelled and lights up in the selection
   colours while a start is being chosen or a replay runs. A dashed vertical line keeps the bar
   the replay started on marked on every chart (`replayStart` renderer feature). The floating
@@ -44,6 +51,9 @@ All notable changes to Vela, newest first.
 
 ### Fixed
 
+- **The Go to dialog resolves typed words against its own clock.** `yesterday` and `06-15` were read
+  against the real clock while "today" came from the dialog's, so they could be refused (or accepted)
+  across a day boundary.
 - **Indicator titles stay readable in a squeezed pane.** The wash behind an indicator's title and
   values is nearly solid in an indicator pane (it was 60% everywhere), so reference lines no
   longer strike through the text when the pane is short; the price pane keeps the light wash so

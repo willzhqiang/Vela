@@ -78,6 +78,7 @@ import {
     type LayoutDefinition,
     type TrackSizes,
 } from './layouts';
+import { layoutCatalog } from './layout-catalog';
 import { SplitterLayer, evenTracks } from './splitters';
 import { compositeLayoutScreenshot, tilesFromCellRects, triggerPngDownload, type LayoutShotTile } from './screenshot';
 
@@ -321,6 +322,8 @@ export class VelaWorkspace {
     private readonly goToDateDialog: GoToDialog;
     private readonly replayDateDialog: GoToDialog;
     private replayUi!: ReplayUi;
+    /** While a layout switch builds its new windows: the market they open on (the active window's), unless the host declared one for them. */
+    private inheritSeed: Pick<CellBoot, 'symbol' | 'timeframe' | 'session' | 'priceStyle'> | null = null;
     private layoutsCtl: LayoutsController | null = null;
     private layoutsMenu: LayoutsMenu | null = null;
     private layoutsUnsub: (() => void) | null = null;
@@ -571,12 +574,13 @@ export class VelaWorkspace {
             // button and no sync switches (see TopbarOptions.layout).
             layout: this.monoLayout ? undefined : {
                 current: this.def.id,
-                // The picker composes dynamic layouts on its grid canvas; registered
-                // presets the canvas cannot express (bespoke plugin areas) list as rows.
-                shape: () => layoutShape(this.def),
-                presets: () => layouts().filter((l) => layoutShape(l) === null).map((l) => ({ id: l.id, label: l.label })),
-                onSelectGrid: (rows, cols) => this.setLayout(layoutForGrid(rows, cols)),
-                onSelectPreset: (id) => this.setLayout(id),
+                // The picker offers its built-in catalogue (by window count); registered layouts
+                // the catalogue does not hold (plugins') list under "Custom".
+                presets: () => {
+                    const known = new Set(layoutCatalog().flatMap((g) => g.layouts.map((d) => d.id)));
+                    return layouts().filter((l) => !known.has(l.id)).map((l) => ({ id: l.id, label: l.label }));
+                },
+                onSelectLayout: (id) => this.setLayout(id),
                 // The SYNC switches reflect the simple all-cells form; flipping one
                 // OVERRIDES a host-set group record with plain on/off (groups stay an
                 // API-only shape).
@@ -584,6 +588,8 @@ export class VelaWorkspace {
                     { id: 'symbol', label: 'Symbol', checked: this.syncOpts.symbol === true },
                     { id: 'timeframe', label: 'Interval', checked: this.syncOpts.timeframe === true },
                     { id: 'crosshair', label: 'Crosshair', checked: this.syncOpts.crosshair === true },
+                    { id: 'viewport', label: 'Time', checked: this.syncOpts.viewport === true },
+                    { id: 'drawings', label: 'Drawings', checked: this.syncOpts.drawings === true },
                     { id: 'style', label: 'Style', checked: this.syncOpts.style === true },
                 ],
                 onToggleSync: (id) => {
@@ -1292,6 +1298,11 @@ export class VelaWorkspace {
         const next = this.resolveLayout(layout);
         const nextBackend = this.backendFor(next);
         const rebuildAll = nextBackend !== this.cellBackend;
+        // A window the user adds opens on what they are looking at — the active window's symbol,
+        // timeframe, session and chart style — not on the app's startup defaults. Read before any
+        // cell is torn down (a backend change rebuilds them all).
+        const lead = this.activeId ? this.cellsById.get(this.activeId) : undefined;
+        const inherit = lead ? { symbol: lead.symbol, timeframe: lead.timeframe, session: lead.session, priceStyle: lead.priceStyle } : null;
         // The ACTIVE chart always survives a shrink — it moves into the last kept
         // slot instead of pooling, so changing the grid never hides the chart the
         // user is working in.
@@ -1312,7 +1323,12 @@ export class VelaWorkspace {
         this.def = next;
         this.cellBackend = nextBackend;
         this.applyGrid();
-        this.buildCells();
+        this.inheritSeed = inherit;
+        try {
+            this.buildCells();
+        } finally {
+            this.inheritSeed = null;
+        }
         this.alignNewCellStyles(preexisting);
         this.syncCellPresentation();
         this.refreshCellControls(); // the maximize gate follows the cell count
@@ -1732,7 +1748,7 @@ export class VelaWorkspace {
             }
             if (this.cellsById.has(id)) continue;
             const pooled = this.pool.get(id);
-            const seed: CellBoot = pooled ?? { ...seedDefaults(this.opts), ...(this.opts.cells?.[id] ?? {}) };
+            const seed: CellBoot = pooled ?? { ...seedDefaults(this.opts), ...(this.inheritSeed ?? {}), ...(this.opts.cells?.[id] ?? {}) };
             this.pool.delete(id); // the slot is live again — its pooled state is consumed
             const cell = new ChartCell(id, this.gridEl, seed, {
                 feed: this.feed,

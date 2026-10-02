@@ -55,11 +55,14 @@ export class GoToModel {
     private fieldValue: GoToField = 'date';
     private readonly stamps: Record<GoToField, GoToStamp>;
     private readonly zone: string;
+    /** The clock this model reads "today" from — typed words ("yesterday", "06-15") are resolved against the same one. */
+    private readonly now: number;
     private readonly ranges: boolean;
     private readonly listeners = new Set<() => void>();
 
     constructor(opts: GoToModelOptions) {
         const now = opts.now ?? Date.now();
+        this.now = now;
         this.zone = opts.zone;
         this.ranges = opts.ranges !== false;
         const today = stampOf(now, opts.zone);
@@ -131,13 +134,13 @@ export class GoToModel {
 
     /** Whether typed text names a pickable day (no change made). */
     validDay(text: string): boolean {
-        const parsed = parseGoToDate(text, this.zone);
+        const parsed = parseGoToDate(text, this.zone, this.now);
         return parsed !== null && stampOf(parsed.ts, this.zone).day <= this.maxDay;
     }
 
     /** Typed text for a field's day. Accepts what Alt+G always took (`2026-06-15`, `06-15`, `yesterday`, `2026-06-15 10:30`). False — nothing changes — when it is not a pickable day. */
     typeDay(field: GoToField, text: string): boolean {
-        const parsed = parseGoToDate(text, this.zone);
+        const parsed = parseGoToDate(text, this.zone, this.now);
         if (!parsed || !this.validDay(text)) return false;
         const next = stampOf(parsed.ts, this.zone);
         const hasTime = /[ t]+\d{1,2}:\d{2}$/i.test(text.trim());
