@@ -1749,6 +1749,16 @@ export class VelaWorkspace {
         if (mark.parentElement !== host) host.appendChild(mark);
     }
 
+    /** A fresh window's boot state: the options' defaults, the active window's market when the user added it, then the host's `cells` entry. */
+    private bootSeed(id: string): CellBoot {
+        const { indicators, ...declared } = this.opts.cells?.[id] ?? {};
+        const base: Omit<CellSeed, 'indicators'> = seedDefaults(this.opts);
+        const seed: CellBoot = { ...base, ...(this.inheritSeed ?? {}), ...declared };
+        // A declared set is a ledger: the cell re-adds it by name once the manifest resolves.
+        if (indicators) seed.indicators = { manifest: indicators.manifest ?? [], natives: indicators.natives ?? (this.opts.volume ?? true ? ['volume'] : []) };
+        return seed;
+    }
+
     /** Create the cells the current layout wants but don't exist yet (pool-first).
      *  A slot's CELL IDENTITY is `order[i]` (declaration order — never the slot's own
      *  positional id); slots past the declared list mint an auto identity once. */
@@ -1763,7 +1773,7 @@ export class VelaWorkspace {
             }
             if (this.cellsById.has(id)) continue;
             const pooled = this.pool.get(id);
-            const seed: CellBoot = pooled ?? { ...seedDefaults(this.opts), ...(this.inheritSeed ?? {}), ...(this.opts.cells?.[id] ?? {}) };
+            const seed: CellBoot = pooled ?? this.bootSeed(id);
             this.pool.delete(id); // the slot is live again — its pooled state is consumed
             const cell = new ChartCell(id, this.gridEl, seed, {
                 feed: this.feed,

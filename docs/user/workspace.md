@@ -517,6 +517,18 @@ wrapper) of entries, inline or fetched from a URL, shared by every cell:
   the user to toggle on. Toggles are live and per cell, and survive market switches.
 - A broken entry is skipped with a console warning — one bad script never takes the
   chart down. A failing manifest URL throws.
+- A `cells` entry can declare the set its window opens on, instead of the `enabled` entries —
+  the same names-plus-deltas a saved state records. Repeat a name for several instances with
+  their own parameters; `hidden` opens one switched off; `manifest: []` means none; `natives`
+  defaults to the workspace's `volume` option:
+
+  ```ts
+  cells: {
+      fast: { timeframe: '10', indicators: { manifest: ['EMA Clouds', { name: 'MTF Clouds', inputs: { res: '60' } }, { name: 'MTF Clouds', inputs: { res: 'D' }, hidden: true }] } },
+  }
+  ```
+
+  Inputs are keyed by the schema key; a title also works (the key wins when both are given).
 
 ## Keyboard
 
