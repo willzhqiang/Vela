@@ -2583,6 +2583,62 @@ class PropsEngine extends MockEngine {
     }
 }
 
+/** An engine whose input key (a Pine varId) differs from its title — the shape real Pine scripts have. */
+class KeyedEngine extends MockEngine {
+    executeInputs: Array<Record<string, InputValue> | undefined> = [];
+
+    override prepare(_source: string, instanceId: string): Promise<PreparedScript> {
+        return Promise.resolve({
+            language: 'pine',
+            inputs: [
+                { key: 'ma_len1', title: 'EMA 1 Short Length', type: 'int', defval: 8 },
+                { key: 'res', title: 'Resolution', type: 'string', defval: '' },
+            ],
+            meta: { title: 'Keyed', overlay: true },
+            reactsToViewport: false,
+            token: { instanceId, overlay: true },
+        });
+    }
+
+    override execute(req: ExecutionRequest, handlers: ExecutionHandlers): ExecutionSession {
+        const token = req.prepared.token as { instanceId: string };
+        this.executeInputs.push(req.inputs);
+        handlers.onModel({
+            id: token.instanceId, title: 'Keyed', overlay: true, paneHint: 'price', series: [], fills: [], backgrounds: [], priceLines: [],
+            inputs: req.prepared.inputs, inputValues: req.inputs ?? {},
+        });
+        handlers.onDone?.();
+        return { stop: () => {}, update: () => {}, setVisibleRange: () => {}, notifyBars: () => {} };
+    }
+}
+
+describe('EngineOrchestrator — add-time input overrides', () => {
+    it('an override keyed by the input TITLE reaches the engine on the schema key, not beside it', async () => {
+        const renderer = new FakeRenderer();
+        const engine = new KeyedEngine();
+        const chart = new Vela({} as unknown as HTMLElement, { live: false, volume: false }, { renderer, engines: [engine], dataFeed: new MockDataFeed() });
+        const ind = chart.addIndicator('indicator("K")', { inputs: { 'EMA 1 Short Length': 34, res: '60' } });
+        await chart.ready();
+        await flush();
+
+        // The engine resolves varId before title, so a stale default under the key would shadow the override.
+        expect(engine.executeInputs[0]).toEqual({ ma_len1: 34, res: '60' });
+        expect(ind.inputValues()).toEqual({ ma_len1: 34, res: '60' });
+        chart.destroy();
+    });
+
+    it('the schema key wins when both spellings are given', async () => {
+        const renderer = new FakeRenderer();
+        const engine = new KeyedEngine();
+        const chart = new Vela({} as unknown as HTMLElement, { live: false, volume: false }, { renderer, engines: [engine], dataFeed: new MockDataFeed() });
+        chart.addIndicator('indicator("K")', { inputs: { 'EMA 1 Short Length': 34, ma_len1: 21 } });
+        await chart.ready();
+        await flush();
+        expect(engine.executeInputs[0]).toEqual({ ma_len1: 21, res: '' });
+        chart.destroy();
+    });
+});
+
 describe('EngineOrchestrator — declaration props', () => {
     it('merges schema defaults with add-time overrides and passes them to execute', async () => {
         const renderer = new FakeRenderer();
