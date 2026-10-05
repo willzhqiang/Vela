@@ -2378,7 +2378,7 @@ export class EngineOrchestrator implements IndicatorController, PaneController, 
             record.prepared = prepared;
             const defaults: Record<string, InputValue> = {};
             for (const input of prepared.inputs) defaults[input.key] = input.defval;
-            record.inputValues = { ...defaults, ...record.inputValues };
+            record.inputValues = { ...defaults, ...keyedBySchema(prepared.inputs, record.inputValues) };
             handle.setSchema(prepared.inputs);
             const propDefaults: Record<string, InputValue> = {};
             for (const prop of prepared.props ?? []) propDefaults[prop.key] = prop.defval;
@@ -3200,10 +3200,28 @@ function valuesOnSchema(schema: InputSchema[], previous: Record<string, InputVal
         oldDefaults.set(s.key, s.defval);
         if (!oldDefaults.has(s.title)) oldDefaults.set(s.title, s.defval);
     }
-    for (const [k, v] of Object.entries(previous)) {
+    for (const [k, v] of Object.entries(keyedBySchema(schema, previous))) {
         if (!declared.has(k)) continue;
         if (oldDefaults.has(k) && sameInputValue(oldDefaults.get(k)!, v)) continue;
         out[k] = v;
+    }
+    return out;
+}
+
+/**
+ * Re-spell overrides given by an input's TITLE onto its schema key. Engines resolve the key
+ * before the title (Pine: varId → title), so a title-keyed override left beside the key's
+ * default would be shadowed by it. The key wins when both spellings are present; entries
+ * the schema does not declare pass through untouched.
+ */
+function keyedBySchema(schema: InputSchema[], values: Record<string, InputValue>): Record<string, InputValue> {
+    const keyOfTitle = new Map<string, string>();
+    for (const s of schema) if (s.title !== s.key && !keyOfTitle.has(s.title)) keyOfTitle.set(s.title, s.key);
+    const out: Record<string, InputValue> = {};
+    for (const [k, v] of Object.entries(values)) {
+        const key = keyOfTitle.get(k);
+        if (key === undefined) out[k] = v;
+        else if (!(key in values)) out[key] = v;
     }
     return out;
 }
