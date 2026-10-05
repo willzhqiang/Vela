@@ -6,6 +6,9 @@ All notable changes to Vela, newest first.
 
 ### Added
 
+- **A window can declare its own indicators.** A `cells` entry takes `indicators: { manifest, natives }` —
+  manifest names, or `{ name, inputs, props, hidden }` for parameters and a switched-off start (repeat a
+  name for several instances) — and opens on exactly that set instead of the manifest's `enabled` entries.
 - **A layout picker that splits the chart area the TradingView way.** The topbar's layout button
   (now on the right by default, next to the saved layout's name) wears a diagram of the current arrangement, and its dropdown lists the layouts by window
   count (1, 2, 3 … 9, 12, 16), a diagram for each: side by side, stacked, grids, rows of five or
@@ -52,6 +55,8 @@ All notable changes to Vela, newest first.
   for a single date.
 
 ### Fixed
+
+- **An indicator's add-time input overrides keyed by the input's title are no longer shadowed by its default.** Engines resolve the schema key before the title, so a title-keyed override left beside the key's default lost; it is now re-spelled onto the key (the key wins when both are given).
 
 - **The Go to dialog resolves typed words against its own clock.** `yesterday` and `06-15` were read
   against the real clock while "today" came from the dialog's, so they could be refused (or accepted)

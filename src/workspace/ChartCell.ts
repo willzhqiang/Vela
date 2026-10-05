@@ -57,6 +57,13 @@ export interface CellSeed {
     data?: OHLCV[];
     /** Initial visible window (boot-only). */
     visibleRange?: VisibleRangePreset | VisibleRange;
+    /**
+     * The indicator set this window opens on, instead of the manifest's `enabled` entries —
+     * the same entries a saved state records: a manifest NAME, or `{ name, inputs?, props?,
+     * hidden? }` (repeat a name for several instances with their own parameters). `manifest:
+     * []` declares "none". `natives` defaults to the workspace's `volume` option.
+     */
+    indicators?: { manifest?: LedgerManifestEntry[]; natives?: LedgerNativeEntry[] };
 }
 
 /** A destroyed cell's state, kept by the workspace pool so its slot restores later —

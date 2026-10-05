@@ -176,3 +176,45 @@ describe('indicators on windows added by a layout switch', () => {
         expect(calls.get(second)).not.toContain(true);
     });
 });
+
+describe('indicators a host declares for one window', () => {
+    const script = (title: string): string => `//@version=5\nindicator("${title}")\nplot(close)`;
+    const MANIFEST = {
+        indicators: [
+            { name: 'Alpha', script: script('Alpha'), enabled: true },
+            { name: 'Beta', script: script('Beta'), enabled: false },
+            { name: 'Gamma', script: script('Gamma'), enabled: false },
+        ],
+    };
+    const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 20));
+    const names = (ws: VelaWorkspace, id: string): string[] => ws.cell(id)!.instances.map((i) => i.entry.name);
+
+    it('a window with an `indicators` seed opens on exactly that set, parameters and hidden flag included', async () => {
+        const ws = mount({
+            layout: '2h',
+            indicators: MANIFEST,
+            cells: {
+                a: { indicators: { manifest: ['Beta', { name: 'Gamma', inputs: { len: 34 }, hidden: true }, { name: 'Gamma', inputs: { len: 50 } }] } },
+                b: {},
+            },
+        });
+        await flush();
+        expect(names(ws, 'a')).toEqual(['Beta', 'Gamma', 'Gamma']); // Alpha is enabled in the manifest but this window declared its own set
+        expect(ws.cell('a')!.instances.map((i) => i.values?.inputs)).toEqual([undefined, { len: 34 }, { len: 50 }]);
+        expect(ws.cell('a')!.instances[1]!.handle?.visible).toBe(false);
+        expect(names(ws, 'b')).toEqual(['Alpha']); // an undeclared window still seeds the enabled entries
+    });
+
+    it('an empty manifest list declares "no indicators" for that window', async () => {
+        const ws = mount({ indicators: MANIFEST, cells: { a: { indicators: { manifest: [] } } } });
+        await flush();
+        expect(names(ws, 'a')).toEqual([]);
+    });
+
+    it('the declared set is what a saved state reports (volume stays unless the seed says otherwise)', async () => {
+        const ws = mount({ indicators: MANIFEST, cells: { a: { indicators: { manifest: ['Gamma'] } } } });
+        await flush();
+        const cell = ws.getState().charts.find((c) => c.id === 'a');
+        expect(cell?.indicators?.manifest).toEqual(['Gamma']);
+    });
+});
