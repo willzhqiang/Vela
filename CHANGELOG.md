@@ -57,7 +57,6 @@ All notable changes to Vela, newest first.
 ### Fixed
 
 - **An indicator's add-time input overrides keyed by the input's title are no longer shadowed by its default.** Engines resolve the schema key before the title, so a title-keyed override left beside the key's default lost; it is now re-spelled onto the key (the key wins when both are given).
-
 - **The Go to dialog resolves typed words against its own clock.** `yesterday` and `06-15` were read
   against the real clock while "today" came from the dialog's, so they could be refused (or accepted)
   across a day boundary.
