@@ -56,6 +56,16 @@ function bySlot(...order: string[]): Array<{ id: string; area: string }> {
     return order.map((area, i) => ({ id: `c${i + 1}`, area }));
 }
 
+/** Half and half: one full-height window on the left, two stacked on the right (three windows, `3s`). */
+const HALF_AND_HALF: LayoutDefinition = {
+    id: '3s',
+    label: '1 left, 2 right',
+    cols: [1, 1],
+    rows: [1, 1],
+    areas: ['a b', 'a c'],
+    cells: bySlot('a', 'b', 'c'),
+};
+
 /** Two on top, three below (five windows): six columns so both rows divide evenly. */
 const TWO_OVER_THREE: LayoutDefinition = {
     id: 't2b3',
@@ -88,6 +98,7 @@ const GRIDS: Record<number, Array<[number, number]>> = {
 
 /** Everything that is not a plain 4×4-or-smaller grid, by id (what `ensureLayout` falls back to). */
 const EXTRA: LayoutDefinition[] = [
+    HALF_AND_HALF,
     ...[3, 4, 5, 6].flatMap((n) => (['l', 'r', 't', 'b'] as const).map((s) => oneBig(s, n))),
     ...[7, 8].flatMap((n) => (['l', 't'] as const).map((s) => oneBig(s, n))),
     TWO_OVER_THREE,

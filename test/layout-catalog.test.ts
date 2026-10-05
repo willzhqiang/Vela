@@ -97,6 +97,26 @@ describe('the one-big layouts', () => {
     });
 });
 
+describe('the half-and-half layout "3s" (one left column, two stacked right)', () => {
+    it('is in the three-window row, after the plain rows and columns', () => {
+        const ids = layoutCatalog().find((g) => g.count === 3)!.layouts.map((d) => d.id);
+        expect(ids.slice(0, 3)).toEqual(['g1x3', 'g3x1', '3s']);
+        expect(ids).toContain('bl3'); // the 2:1 variant stays
+    });
+
+    it('left half is the first window, right half is split in two even rows', () => {
+        const [left, top, bottom] = layoutRects(catalogLayout('3s')!);
+        expect(left).toEqual([0, 0, 0.5, 1]);
+        expect(top).toEqual([0.5, 0, 0.5, 0.5]);
+        expect(bottom).toEqual([0.5, 0.5, 0.5, 0.5]);
+    });
+
+    it('differs from the 2:1 one-big layout and resolves by id for a saved document', () => {
+        expect(layoutRects(catalogLayout('3s')!)).not.toEqual(layoutRects(catalogLayout('bl3')!));
+        expect(ensureLayout('3s')!.cells).toHaveLength(3);
+    });
+});
+
 describe('layoutRects', () => {
     it('a uniform grid is cells in row-major order', () => {
         const rects = layoutRects(ensureLayout('g2x3')!);

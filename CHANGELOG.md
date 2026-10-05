@@ -9,7 +9,7 @@ All notable changes to Vela, newest first.
 - **A layout picker that splits the chart area the TradingView way.** The topbar's layout button
   (now on the right by default, next to the saved layout's name) wears a diagram of the current arrangement, and its dropdown lists the layouts by window
   count (1, 2, 3 … 9, 12, 16), a diagram for each: side by side, stacked, grids, rows of five or
-  six, and one big window with the rest small (left, right, top or bottom). The current one is
+  six, and one big window with the rest small (left, right, top or bottom), plus the even half-and-half `3s`. The current one is
   marked, a click applies it, and the *Sync in layout* switches (Symbol, Interval, Crosshair, Time,
   Drawings, Style) sit below. A window added by the switch opens on the active window's symbol and
   timeframe, and opens without the manifest's default indicators (the new `newWindowIndicators`
