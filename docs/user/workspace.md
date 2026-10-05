@@ -133,7 +133,7 @@ back as it was, indicators included.
 Ids: plain grids keep the registry's (`1`, `2h`, `2v`, `4`, `8`) or self-describing dynamic ones
 (`g3x2` = 3 rows × 2 columns), and the catalogue's own arrangements are `bl3`…`bl8`, `br3`…`br6`,
 `bt3`…`bt8`, `bb3`…`bb6` (one big window at the left / right / top / bottom of *n* windows),
-`t2b3` and `h5`/`v5`/`h6`/`v6`. All of them resolve without registration, so persisted picks
+`t2b3`, `3s` (one full-height window on the left, two stacked evenly on the right — half and half) and `h5`/`v5`/`h6`/`v6`. All of them resolve without registration, so persisted picks
 restore across boots. In code: `layoutCatalog()` (the list the dropdown shows), `layoutForGrid(rows,
 cols)` and `layoutRects(def)` (each window's `[x, y, w, h]` as fractions of the grid) are exported
 from `@luxalgo/vela/workspace`, and a pick is `ws.setLayout(id)`.
