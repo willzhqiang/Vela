@@ -1,9 +1,10 @@
 // The "Layouts" dialog — every saved layout in one searchable, sortable list. A row opens that
-// layout; the trash button (shown on hover) deletes it after a confirmation.
+// layout; the trash button (shown on hover) deletes it after a confirmation. With host templates
+// they come first, under their own heading: read-only rows (no trash), searched with the rest.
 import { Dialog } from '../ui/components/dialog';
 import { iconEl } from '../ui/icons';
 import { injectStyles } from '../ui/styles';
-import { filterLayouts, layoutDetail, sortLayouts, type LayoutsActions, type LayoutsStatus } from './layouts-model';
+import { currentTemplateId, filterLayouts, filterTemplates, layoutDetail, sortLayouts, type LayoutsActions, type LayoutsStatus, type LayoutTemplate, type LayoutTemplates } from './layouts-model';
 import { confirmAction, confirmLeave } from './layouts-prompts';
 
 const STYLE_ID = 'vela-widget-layouts-dialog';
@@ -70,6 +71,8 @@ const CSS = `
 .vela-ld-row:hover .vela-ld-delete, .vela-ld-delete:focus-visible { display: inline-flex; }
 .vela-ld-delete:hover { background: var(--vela-hover-strong); color: var(--vela-fg-bright); }
 .vela-ld-empty { padding: 32px 16px; text-align: center; color: var(--vela-fg-muted); font-size: 14px; }
+.vela-ld-heading { flex: none; padding: 10px 16px 4px; color: var(--vela-fg-faint); font-size: 11px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; }
+.vela-ld-heading ~ .vela-ld-empty { padding: 12px 16px; text-align: left; }
 `;
 
 export interface LayoutsDialogOptions {
@@ -77,6 +80,8 @@ export interface LayoutsDialogOptions {
     actions: LayoutsActions;
     /** Time zone the "last saved" times are shown in. */
     zone?: () => string | undefined;
+    /** Built-in layouts listed above the saved ones (see {@link LayoutTemplate}). */
+    templates?: LayoutTemplates;
 }
 
 export class LayoutsDialog {
@@ -175,30 +180,26 @@ export class LayoutsDialog {
         const doc = this.opts.host.ownerDocument;
         const status: LayoutsStatus = this.opts.actions.status();
         const shown = sortLayouts(filterLayouts(status.layouts, this.query), this.dir);
+        const templates = this.opts.templates;
+        const nodes: HTMLElement[] = [];
+        if (templates && templates.list.length > 0) {
+            const matches = filterTemplates(templates.list, this.query);
+            const active = currentTemplateId(templates, status);
+            if (matches.length > 0) nodes.push(this.heading('Templates'), ...matches.map((t) => this.templateRow(t, t.id === active)));
+            nodes.push(this.heading('Saved layouts'));
+        }
         if (shown.length === 0) {
             const empty = doc.createElement('div');
             empty.className = 'vela-ld-empty';
             empty.textContent = status.layouts.length === 0 ? 'No saved layouts yet' : `No layouts match "${this.query.trim()}"`;
-            this.listEl.replaceChildren(empty);
+            nodes.push(empty);
+            this.listEl.replaceChildren(...nodes);
             return;
         }
         const zone = this.opts.zone?.();
-        this.listEl.replaceChildren(
+        nodes.push(
             ...shown.map((l) => {
-                const row = doc.createElement('div');
-                row.className = 'vela-ld-row';
-                row.setAttribute('role', 'button');
-                row.tabIndex = 0;
-                if (status.current?.id === l.id) row.dataset.current = '1';
-                const text = doc.createElement('div');
-                text.className = 'vela-ld-text';
-                const name = doc.createElement('div');
-                name.className = 'vela-ld-name';
-                name.textContent = l.name;
-                const detail = doc.createElement('div');
-                detail.className = 'vela-ld-detail';
-                detail.textContent = layoutDetail(l, zone);
-                text.append(name, detail);
+                const row = this.row(l.name, layoutDetail(l, zone), status.current?.id === l.id, () => void this.choose(l.id, status.current?.id === l.id));
                 const del = doc.createElement('button');
                 del.type = 'button';
                 del.className = 'vela-ld-delete';
@@ -208,16 +209,62 @@ export class LayoutsDialog {
                     e.stopPropagation();
                     void this.confirmDelete(l.id, l.name);
                 });
-                row.append(text, del);
-                row.addEventListener('click', () => void this.choose(l.id, status.current?.id === l.id));
-                row.addEventListener('keydown', (e) => {
-                    if (e.key !== 'Enter' && e.key !== ' ') return;
-                    e.preventDefault();
-                    void this.choose(l.id, status.current?.id === l.id);
-                });
+                row.append(del);
                 return row;
             }),
         );
+        this.listEl.replaceChildren(...nodes);
+    }
+
+    private heading(label: string): HTMLElement {
+        const el = this.opts.host.ownerDocument.createElement('div');
+        el.className = 'vela-ld-heading';
+        el.textContent = label;
+        return el;
+    }
+
+    /** A clickable two-line row (name, detail); Enter and Space activate it too. */
+    private row(name: string, detail: string, current: boolean, activate: () => void): HTMLElement {
+        const doc = this.opts.host.ownerDocument;
+        const row = doc.createElement('div');
+        row.className = 'vela-ld-row';
+        row.setAttribute('role', 'button');
+        row.tabIndex = 0;
+        if (current) row.dataset.current = '1';
+        const text = doc.createElement('div');
+        text.className = 'vela-ld-text';
+        const nameEl = doc.createElement('div');
+        nameEl.className = 'vela-ld-name';
+        nameEl.textContent = name;
+        const detailEl = doc.createElement('div');
+        detailEl.className = 'vela-ld-detail';
+        detailEl.textContent = detail;
+        text.append(nameEl, detailEl);
+        row.append(text);
+        row.addEventListener('click', activate);
+        row.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            e.preventDefault();
+            activate();
+        });
+        return row;
+    }
+
+    /** A template row: read-only — no trash button. */
+    private templateRow(t: LayoutTemplate, current: boolean): HTMLElement {
+        const row = this.row(t.name, t.description ?? '', current, () => void this.chooseTemplate(t, current));
+        row.dataset.template = t.id;
+        return row;
+    }
+
+    private async chooseTemplate(t: LayoutTemplate, isCurrent: boolean): Promise<void> {
+        if (isCurrent) {
+            this.close();
+            return;
+        }
+        if (!(await confirmLeave(this.opts.actions, this.opts.host, 'open'))) return;
+        this.close();
+        t.open();
     }
 
     private async choose(id: string, isCurrent: boolean): Promise<void> {

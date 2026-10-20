@@ -3,7 +3,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { LayoutsMenu } from '../src/widget/layouts-menu';
 import { LayoutsDialog } from '../src/widget/layouts-dialog';
-import type { LayoutsActions, LayoutsStatus, LayoutSummary } from '../src/widget/layouts-model';
+import type { LayoutsActions, LayoutsStatus, LayoutSummary, LayoutTemplate, LayoutTemplates } from '../src/widget/layouts-model';
 
 (globalThis as { CSS?: unknown }).CSS ??= { escape: (v: string) => v };
 
@@ -282,10 +282,10 @@ describe('the Manage layouts menu', () => {
     });
 });
 
-function makeDialog(f = fake()) {
+function makeDialog(f = fake(), templates?: LayoutTemplates) {
     const host = document.createElement('div');
     document.body.appendChild(host);
-    const dialog = new LayoutsDialog({ host, actions: f.actions, zone: () => 'UTC' });
+    const dialog = new LayoutsDialog({ host, actions: f.actions, zone: () => 'UTC', templates });
     cleanups.push(() => dialog.destroy());
     dialog.open();
     return { dialog, host, ...f };
@@ -396,5 +396,161 @@ describe('the Layouts dialog', () => {
         expect(subs.size).toBe(1);
         dialog.close();
         expect(subs.size).toBe(0);
+    });
+});
+
+const tpl = (id: string, name: string, description: string) => ({ id, name, description, open: vi.fn<() => void>() }) satisfies LayoutTemplate;
+function templates(active?: string) {
+    const list = [tpl('default', 'Default', 'One chart'), tpl('multi', 'Multi', '2×2 · 10m / 1h / D / 5m'), tpl('dt', 'DT Charts', '10m · 1h · D, light'), tpl('casey', 'Casey', 'Left 2m EMA 13/48/200 · right 15m levels · SPX/SPY/QQQ/IWM')];
+    return { list, active, byId: (id: string) => list.find((t) => t.id === id)! };
+}
+const templateRows = (): HTMLElement[] => qa('.vela-ld-row[data-template]');
+const savedNames = (): string[] => qa('.vela-ld-row:not([data-template]) .vela-ld-name').map((n) => n.textContent!);
+const headings = (): string[] => qa('.vela-ld-heading').map((h) => h.textContent!);
+
+describe('layout templates in the Layouts dialog', () => {
+    it('lists the templates first, in the host order, with their descriptions, then the saved layouts', () => {
+        makeDialog(fake(), templates());
+        expect(headings()).toEqual(['Templates', 'Saved layouts']);
+        expect(templateRows().map((r) => r.querySelector('.vela-ld-name')!.textContent)).toEqual(['Default', 'Multi', 'DT Charts', 'Casey']);
+        expect(templateRows()[3]!.querySelector('.vela-ld-detail')!.textContent).toBe('Left 2m EMA 13/48/200 · right 15m levels · SPX/SPY/QQQ/IWM');
+        expect(savedNames()).toEqual(['Daily view', 'Layout 2', 'Layout 10', 'Morning SPY', 'NVDA earnings']);
+        const list = q('.vela-ld-list');
+        expect(list.children[0]!.textContent).toBe('Templates');
+        expect([...list.children].indexOf(qa('.vela-ld-heading')[1]!)).toBe(5);
+    });
+
+    it('still shows the templates when there are no saved layouts; "No saved layouts yet" sits under Saved layouts', () => {
+        makeDialog(fake({ layouts: [], current: null }), templates('default'));
+        expect(templateRows()).toHaveLength(4);
+        const list = [...q('.vela-ld-list').children];
+        expect(list[list.length - 2]!.textContent).toBe('Saved layouts');
+        expect(list[list.length - 1]!.textContent).toBe('No saved layouts yet');
+        expect(qa('.vela-ld-empty')).toHaveLength(1);
+    });
+
+    it('template rows are read-only: no trash button', () => {
+        makeDialog(fake(), templates());
+        expect(templateRows().every((r) => r.querySelector('.vela-ld-delete') === null)).toBe(true);
+        expect(qa('.vela-ld-delete')).toHaveLength(5);
+    });
+
+    it('search covers templates and saved layouts together', () => {
+        makeDialog(fake(), templates());
+        const search = q('.vela-ld-search input') as HTMLInputElement;
+        write(search, 'casey');
+        expect(templateRows().map((r) => r.dataset.template)).toEqual(['casey']);
+        expect(q('.vela-ld-empty').textContent).toBe('No layouts match "casey"');
+        write(search, 'spx');
+        expect(templateRows().map((r) => r.dataset.template)).toEqual(['casey']);
+        expect(savedNames()).toEqual(['Layout 2', 'Layout 10']);
+        write(search, 'nvda');
+        expect(templateRows()).toEqual([]);
+        expect(headings()).toEqual(['Saved layouts']);
+        expect(savedNames()).toEqual(['NVDA earnings']);
+    });
+
+    it('sorting reorders the saved layouts only', () => {
+        makeDialog(fake(), templates());
+        (q('.vela-ld-sort') as HTMLButtonElement).click();
+        expect(templateRows().map((r) => r.dataset.template)).toEqual(['default', 'multi', 'dt', 'casey']);
+        expect(savedNames()[0]).toBe('NVDA earnings');
+    });
+
+    it('highlights the active template while no saved layout is current', () => {
+        const { push } = makeDialog(fake({ current: null }), templates('casey'));
+        expect(templateRows().filter((r) => r.dataset.current === '1').map((r) => r.dataset.template)).toEqual(['casey']);
+        expect(qa('.vela-ld-row[data-current="1"]')).toHaveLength(1);
+        push({ current: LAYOUTS[0]! }); // a saved layout was opened (or the template saved under a name)
+        expect(templateRows().filter((r) => r.dataset.current === '1')).toEqual([]);
+        expect(qa('.vela-ld-row[data-current="1"] .vela-ld-name').map((n) => n.textContent)).toEqual(['Morning SPY']);
+    });
+
+    it('a template row calls its open() and closes the dialog — nothing goes through the store', async () => {
+        const t = templates();
+        const { actions, dialog } = makeDialog(fake(), t);
+        templateRows()[3]!.click();
+        await flush();
+        expect(t.byId('casey').open).toHaveBeenCalledTimes(1);
+        expect(dialog.isOpen).toBe(false);
+        for (const fn of [actions.open, actions.save, actions.makeCopy, actions.rename, actions.createNew, actions.remove]) expect(fn).not.toHaveBeenCalled();
+    });
+
+    it('opens from the keyboard too', async () => {
+        const t = templates();
+        makeDialog(fake(), t);
+        templateRows()[1]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        await flush();
+        expect(t.byId('multi').open).toHaveBeenCalledTimes(1);
+    });
+
+    it('the active template only closes', async () => {
+        const t = templates('casey');
+        const { dialog } = makeDialog(fake({ current: null }), t);
+        await flush();
+        templateRows()[3]!.click();
+        await flush();
+        expect(t.byId('casey').open).not.toHaveBeenCalled();
+        expect(dialog.isOpen).toBe(false);
+    });
+
+    it('warns before leaving unsaved changes, and stays put on "keep"', async () => {
+        const t = templates();
+        makeDialog(fake({ dirty: true, autosave: false }, true), t);
+        templateRows()[3]!.click();
+        await flush();
+        expect(document.querySelector('.vela-lay-prompt-message')!.textContent).toMatch(/unsaved changes/i);
+        button('Cancel').click();
+        await flush();
+        expect(t.byId('casey').open).not.toHaveBeenCalled();
+        templateRows()[3]!.click();
+        await flush();
+        button('Discard and open').click();
+        await flush();
+        expect(t.byId('casey').open).toHaveBeenCalledTimes(1);
+    });
+
+    it('without templates the dialog has no headings', () => {
+        makeDialog(fake(), { list: [] });
+        expect(headings()).toEqual([]);
+        expect(rows()).toHaveLength(5);
+    });
+});
+
+describe('layout templates in the Manage layouts menu', () => {
+    const labels = (): string[] => qa('.vela-lm-item').map((i) => i.querySelector('.vela-lm-label')!.textContent!);
+
+    it('lists them under "Templates", after recently used and before Open layout…', () => {
+        const { menu, anchor } = makeMenu(fake(), { templates: templates() });
+        menu.toggle(anchor);
+        expect(qa('.vela-lm-heading').map((h) => h.textContent)).toEqual(['Recently used', 'Templates']);
+        expect(labels().slice(-5)).toEqual(['Default', 'Multi', 'DT Charts', 'Casey', 'Open layout…']);
+        expect(qa('.vela-lm-template[data-template="casey"]')[0]!.title).toContain('EMA 13/48/200');
+    });
+
+    it('shows them even with no saved layouts, and marks the active one', () => {
+        const { menu, anchor } = makeMenu(fake({ layouts: [], current: null }), { templates: templates('dt') });
+        menu.toggle(anchor);
+        expect(qa('.vela-lm-heading').map((h) => h.textContent)).toEqual(['Templates']);
+        expect(qa('.vela-lm-template[data-current="1"]').map((e) => e.dataset.template)).toEqual(['dt']);
+    });
+
+    it('a template opens through its open() and closes the menu', async () => {
+        const t = templates();
+        const { menu, anchor, actions } = makeMenu(fake(), { templates: t });
+        menu.toggle(anchor);
+        item('Casey').click();
+        await flush();
+        expect(t.byId('casey').open).toHaveBeenCalledTimes(1);
+        expect(actions.open).not.toHaveBeenCalled();
+        expect(menu.isOpen).toBe(false);
+    });
+
+    it('Open layout… hands the templates to the dialog', async () => {
+        const { menu, anchor } = makeMenu(fake(), { templates: templates() });
+        menu.toggle(anchor);
+        item('Open layout…').click();
+        await flush();
+        expect(templateRows()).toHaveLength(4);
     });
 });

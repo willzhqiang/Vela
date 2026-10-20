@@ -1,6 +1,6 @@
 // The pure helpers behind the Layouts menu and dialog: recents, search, sort, the two-line subtitles.
 import { describe, it, expect } from 'vitest';
-import { recentLayouts, filterLayouts, sortLayouts, layoutSubtitle, layoutDetail, type LayoutSummary } from '../src/widget/layouts-model';
+import { recentLayouts, filterLayouts, sortLayouts, layoutSubtitle, layoutDetail, filterTemplates, currentTemplateId, type LayoutSummary, type LayoutTemplate } from '../src/widget/layouts-model';
 
 const mk = (id: string, name: string, opened: number, symbol = 'SPY', timeframe = '10', saved = opened): LayoutSummary => ({ id, name, opened, saved, symbol, timeframe });
 
@@ -75,5 +75,35 @@ describe('subtitles', () => {
     it('a layout with no symbol yet shows just what it has', () => {
         expect(layoutSubtitle(mk('a', 'x', 1, '', ''))).toBe('');
         expect(layoutSubtitle(mk('a', 'x', 1, 'SPY', ''))).toBe('SPY');
+    });
+});
+
+const tpl = (id: string, name: string, description?: string): LayoutTemplate => ({ id, name, description, open: () => undefined });
+const TEMPLATES = [tpl('default', 'Default', 'One chart'), tpl('multi', 'Multi', '2×2: 10m / 1h / D / 5m'), tpl('casey', 'Casey', 'Left 2m EMA 13/48/200 · right 15m levels')];
+
+describe('filterTemplates', () => {
+    it('keeps the host order and matches every word in name, description or id', () => {
+        expect(filterTemplates(TEMPLATES, '').map((t) => t.id)).toEqual(['default', 'multi', 'casey']);
+        expect(filterTemplates(TEMPLATES, 'CASEY').map((t) => t.id)).toEqual(['casey']);
+        expect(filterTemplates(TEMPLATES, '1h 5m').map((t) => t.id)).toEqual(['multi']);
+        expect(filterTemplates(TEMPLATES, 'ema 15m').map((t) => t.id)).toEqual(['casey']);
+        expect(filterTemplates(TEMPLATES, 'nothing')).toEqual([]);
+    });
+
+    it('a template without a description is searched by name and id', () => {
+        expect(filterTemplates([tpl('dt', 'DT Charts')], 'dt').map((t) => t.id)).toEqual(['dt']);
+    });
+});
+
+describe('currentTemplateId', () => {
+    it('is the active template while no saved layout is current', () => {
+        expect(currentTemplateId({ list: TEMPLATES, active: 'casey' }, { current: null })).toBe('casey');
+    });
+
+    it('is none once a saved layout is current, without an active id, or for an unknown id', () => {
+        expect(currentTemplateId({ list: TEMPLATES, active: 'casey' }, { current: mk('a', 'x', 1) })).toBeNull();
+        expect(currentTemplateId({ list: TEMPLATES }, { current: null })).toBeNull();
+        expect(currentTemplateId({ list: TEMPLATES, active: 'nope' }, { current: null })).toBeNull();
+        expect(currentTemplateId(undefined, { current: null })).toBeNull();
     });
 });

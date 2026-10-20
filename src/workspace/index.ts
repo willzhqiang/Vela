@@ -29,6 +29,6 @@ export { encodeState, decodeState, sanitizeState, memoryStorageAdapter } from '.
 export type { WorkspaceState, CellState, ChartState, PanelsState, DrawingToolsState, WorkspaceStorage } from './persist';
 export { LayoutsController } from './LayoutsController';
 export type { LayoutsControllerOptions, LayoutsHost } from './LayoutsController';
-export type { LayoutStore, LayoutSummary, LayoutRecord, LayoutsStatus } from '../widget/layouts-model';
+export type { LayoutStore, LayoutSummary, LayoutRecord, LayoutsStatus, LayoutTemplate, LayoutTemplates } from '../widget/layouts-model';
 export { layoutCatalog, layoutRects, catalogLayout, CATALOG_COUNTS } from './layout-catalog';
 export type { LayoutGroup, LayoutRect } from './layout-catalog';

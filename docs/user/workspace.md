@@ -368,13 +368,47 @@ The button opens the **Manage layouts** menu:
 | Download chart data… | The active chart's loaded bars as a CSV (`time,open,high,low,close,volume`, ISO-8601 UTC times) — [`chart.getBars()`](./api-reference.md#core-methods). |
 | Create new layout… | A fresh layout from the defaults the chart started with. |
 | Recently used | The four most recently opened layouts, two lines each (name, then `SYMBOL, timeframe`); the current one is highlighted. |
-| Open layout… | The **Layouts** dialog: every layout, searchable (name, symbol, timeframe), sortable by name, each row showing when it was last saved; a trash button on hover deletes after a confirmation. |
+| Templates | Only with `layoutTemplates` (see below): the host's built-in layouts, the active one highlighted. |
+| Open layout… | The **Layouts** dialog: every layout, searchable (name, symbol, timeframe), sortable by name, each row showing when it was last saved; a trash button on hover deletes after a confirmation. With templates, they come first under their own *Templates* heading and the saved layouts follow under *Saved layouts*. |
 
 On start the most recently used layout is opened. Applying a layout restores indicators and
 deepens history over a moment; changes made *by that restore* do not count as unsaved edits.
 A store call that fails shows a toast and leaves the chart as it is.
 Set `openRecentLayout: false` to start on what the options describe instead — a preset your page
 picked, say from its URL; the saved layouts stay in the menu.
+
+### Layout templates
+
+Presets a page builds in code (a 2×2 grid, a two-window setup with its indicators…) can be offered
+next to the saved layouts as **templates**:
+
+```ts
+new VelaWorkspace('#app', {
+    layouts: myStore,
+    layoutTemplates: [
+        { id: 'default', name: 'Default', description: 'One chart', open: () => location.assign('?layout=default') },
+        { id: 'multi', name: 'Multi', description: '2×2 · 10m / 1h / D / 5m', open: () => location.assign('?layout=multi') },
+    ],
+    activeLayoutTemplate: 'multi', // the one this page was built from
+    openRecentLayout: false, // keep it on screen instead of the most recently used saved layout
+});
+```
+
+- They are listed under **Templates** in the Manage layouts menu (name only, the description as
+  its tooltip) and in the Layouts dialog (name and description), above the saved layouts — also
+  when there are none ("No saved layouts yet" sits under *Saved layouts*). Search matches the
+  name, the description and the id, together with the saved layouts; sorting orders the saved
+  layouts only, the templates keep the host's order.
+- They are read-only: no trash button, no rename, and never written to the `LayoutStore` —
+  templates are code, not data. To keep changes made on one, use *Save layout* (an unsaved chart
+  asks for a name) or *Make a copy…*.
+- `activeLayoutTemplate` is highlighted while no saved layout is current; once a layout is
+  opened or the chart is saved under a name, that layout is highlighted instead.
+- Choosing one calls its `open()` — the workspace does not switch by itself, the host decides
+  what opening means (typically a navigation to the URL that builds the preset). With unsaved
+  changes and autosave off it asks first, as opening a saved layout does. Nothing is written to
+  the store on the way; a navigation leaves the page as closing the tab does (with autosave on,
+  the current layout's own pending edit is saved, as autosave promises on leaving).
 
 ### The `LayoutStore` interface
 
@@ -393,7 +427,8 @@ interface LayoutStore {
 ```
 
 The ids are the store's to make. `LayoutsController` (exported from `@luxalgo/vela/workspace`)
-is the state machine behind the menu, usable with your own UI.
+is the state machine behind the menu, usable with your own UI; the `LayoutTemplate` type is
+exported from there too.
 
 ## State & persistence
 

@@ -102,3 +102,39 @@ export interface LayoutsActions {
     open(id: string): Promise<boolean>;
     remove(id: string): Promise<boolean>;
 }
+
+/**
+ * A built-in layout the host offers next to the saved ones — code, not data: listed read-only
+ * (no rename, no delete), never written to the {@link LayoutStore}. Opening one is the host's job
+ * (typically a navigation, e.g. to `?layout=<id>`); keeping changes made on it is "Save layout".
+ */
+export interface LayoutTemplate {
+    id: string;
+    name: string;
+    /** One line under the name in the Layouts dialog. */
+    description?: string;
+    open(): void;
+}
+
+/** The templates the menu and dialog list, and the one the chart started from. */
+export interface LayoutTemplates {
+    list: readonly LayoutTemplate[];
+    /** Id of the template on screen — highlighted while no saved layout is current. */
+    active?: string;
+}
+
+/** Templates whose name, description or id contain every word of `query` (case-insensitive); the host's order is kept. */
+export function filterTemplates(templates: readonly LayoutTemplate[], query: string): LayoutTemplate[] {
+    const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+    if (words.length === 0) return [...templates];
+    return templates.filter((t) => {
+        const hay = `${t.name} ${t.description ?? ''} ${t.id}`.toLowerCase();
+        return words.every((w) => hay.includes(w));
+    });
+}
+
+/** The template to highlight: the active one, unless a saved layout is current (it was opened or saved since). */
+export function currentTemplateId(templates: LayoutTemplates | undefined, status: Pick<LayoutsStatus, 'current'>): string | null {
+    if (!templates?.active || status.current) return null;
+    return templates.list.some((t) => t.id === templates.active) ? templates.active : null;
+}

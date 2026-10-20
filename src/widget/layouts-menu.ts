@@ -1,6 +1,6 @@
 // The "Manage layouts" menu — the panel under the topbar's layout-name button: save, autosave,
 // copy, rename, download the loaded bars, create a new layout, the most recently used layouts,
-// and "Open layout…" for the full list.
+// the host's built-in templates (if any), and "Open layout…" for the full list.
 //
 // A lightweight anchored panel (outside-pointerdown + Escape dismiss) rather than a kit Menu:
 // it mixes plain rows, a switch row and two-line rows, beyond the menu machine's item model.
@@ -8,7 +8,7 @@
 import { iconEl } from '../ui/icons';
 import { injectStyles } from '../ui/styles';
 import { LayoutsDialog } from './layouts-dialog';
-import { layoutSubtitle, recentLayouts, type LayoutsActions, type LayoutsStatus } from './layouts-model';
+import { currentTemplateId, layoutSubtitle, recentLayouts, type LayoutsActions, type LayoutsStatus, type LayoutTemplates } from './layouts-model';
 import { confirmLeave, promptName } from './layouts-prompts';
 
 const STYLE_ID = 'vela-widget-layouts-menu';
@@ -45,7 +45,7 @@ const CSS = `
 .vela-lm-recent .vela-lm-text { flex: 1 1 auto; min-width: 0; }
 .vela-lm-recent .vela-lm-label { display: block; }
 .vela-lm-sub { margin-top: 2px; color: var(--vela-fg-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.vela-lm-recent[data-current='1'] { background: var(--vela-hover-strong); }
+.vela-lm-recent[data-current='1'], .vela-lm-template[data-current='1'] { background: var(--vela-hover-strong); }
 .vela-lm-error { padding: 6px 16px; color: var(--vela-danger); font-size: 12px; }
 .vela-lm-switch {
     all: unset;
@@ -81,6 +81,8 @@ export interface LayoutsMenuOptions {
     zone?: () => string | undefined;
     /** Download the chart's loaded bars as a file. */
     onDownload: () => void;
+    /** Built-in layouts listed under "Templates" (and in the dialog). */
+    templates?: LayoutTemplates;
     onOpenChange?: (open: boolean) => void;
 }
 
@@ -155,7 +157,7 @@ export class LayoutsMenu {
     }
 
     private openDialog(): void {
-        this.dialog ??= new LayoutsDialog({ host: this.opts.host, actions: this.opts.actions, zone: this.opts.zone });
+        this.dialog ??= new LayoutsDialog({ host: this.opts.host, actions: this.opts.actions, zone: this.opts.zone, templates: this.opts.templates });
         this.dialog.open();
     }
 
@@ -250,6 +252,25 @@ export class LayoutsMenu {
             heading.className = 'vela-lm-heading';
             heading.textContent = 'Recently used';
             nodes.push(heading, ...recents, this.sep());
+        }
+        const templates = this.opts.templates;
+        if (templates && templates.list.length > 0) {
+            const heading = this.doc.createElement('div');
+            heading.className = 'vela-lm-heading';
+            heading.textContent = 'Templates';
+            const active = currentTemplateId(templates, status);
+            const rows = templates.list.map((t) => {
+                const el = this.row(null, t.name, run(async () => {
+                    if (t.id === active) return;
+                    if (await confirmLeave(actions, this.opts.host, 'open')) t.open();
+                }));
+                el.classList.add('vela-lm-template');
+                el.dataset.template = t.id;
+                if (t.description) el.title = t.description;
+                if (t.id === active) el.dataset.current = '1';
+                return el;
+            });
+            nodes.push(heading, ...rows, this.sep());
         }
         nodes.push(this.row('folder', 'Open layout…', run(() => this.openDialog())));
         if (status.error) {

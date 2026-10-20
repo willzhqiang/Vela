@@ -60,7 +60,7 @@ import { encodeState, decodeState, sanitizeState, type DrawingToolsState, type W
 import { localStorageAdapter } from '../widget/persist';
 import { LayoutsController } from './LayoutsController';
 import { LayoutsMenu } from '../widget/layouts-menu';
-import type { LayoutStore } from '../widget/layouts-model';
+import type { LayoutStore, LayoutTemplate } from '../widget/layouts-model';
 import { barsToCsv, csvFileName } from '../widget/chart-data-csv';
 import { ChartCell, seedDefaults, cellChartDefaults, type CellSeed, type CellBoot, type PooledCellState } from './ChartCell';
 import { buildContext, type WorkspaceWidgetContext } from './context';
@@ -152,6 +152,15 @@ export interface VelaWorkspaceOptions extends Omit<VelaOptions, 'height'>, VelaS
      * from its URL — and leaves the saved layouts in the menu, one click away.
      */
     openRecentLayout?: boolean;
+    /**
+     * Built-in layouts the host offers next to the saved ones (with `layouts`): a "Templates"
+     * section in the Manage layouts menu and the Layouts dialog — read-only, searchable, never
+     * written to the store. `open()` is the host's (typically a navigation to `?layout=<id>`);
+     * an open with unsaved changes and autosave off asks first, as opening a saved layout does.
+     */
+    layoutTemplates?: readonly LayoutTemplate[];
+    /** Id of the template this page started from — highlighted while no saved layout is current. */
+    activeLayoutTemplate?: string;
 }
 
 /** A cell's {@link ScriptRun}, tagged with the cell it ran in. */
@@ -928,6 +937,7 @@ export class VelaWorkspace {
             actions: ctl,
             zone: () => this.active.displayTimezone,
             onDownload: () => this.downloadChartData(),
+            ...(this.opts.layoutTemplates?.length ? { templates: { list: this.opts.layoutTemplates, active: this.opts.activeLayoutTemplate } } : {}),
             onOpenChange: (open) => this.trackDialog(open),
         });
         this.layoutsUnsub = ctl.subscribe((s) => this.topbar.setLayoutsState({ name: s.current?.name ?? 'Unnamed', dirty: s.dirty }));

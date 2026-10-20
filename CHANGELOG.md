@@ -6,6 +6,11 @@ All notable changes to Vela, newest first.
 
 ### Added
 
+- **Layout templates.** `layoutTemplates: [{ id, name, description?, open() }]` (with `activeLayoutTemplate`)
+  lists a page's built-in layouts under *Templates* in the Manage layouts menu and the Layouts dialog, above
+  the saved layouts (also when there are none): read-only (no delete or rename), searched together with the
+  saved layouts, the active one highlighted while no saved layout is current, never written to the store.
+  Choosing one calls the host's `open()` — typically a navigation to the URL that builds the preset.
 - **A page-picked preset can skip the saved-layout restore.** `openRecentLayout: false` starts the workspace on
   what its options describe (say a preset chosen from the URL) instead of the most recently used saved layout;
   the saved layouts stay in the menu.
