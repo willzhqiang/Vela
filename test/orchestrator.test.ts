@@ -3276,3 +3276,18 @@ describe('handle.updateCode — the outcome, rollback and declared defaults', ()
         }
     });
 });
+
+describe('EngineOrchestrator — the chart session reaches the engine', () => {
+    it('market.session carries the chart session and follows a session switch', async () => {
+        const engine = new RequestCaptureEngine();
+        const chart = new Vela({} as unknown as HTMLElement, { live: false, volume: false, session: 'extended' }, { renderer: new FakeRenderer(), engines: [engine], dataFeed: new MockDataFeed() });
+        chart.addIndicator('//@version=5\nindicator("X", overlay=true)\nplot(close)');
+        await chart.ready();
+        await flush();
+        expect(engine.requests[engine.requests.length - 1]!.market.session).toBe('extended');
+
+        await chart.setMarket({ session: 'regular' });
+        await flush();
+        expect(engine.requests[engine.requests.length - 1]!.market.session).toBe('regular');
+    });
+});

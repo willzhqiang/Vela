@@ -3,7 +3,7 @@ import type { InputSchema, InputValue } from '../model/inputs';
 import type { IndicatorMeta, IndicatorModel } from '../model/indicator';
 import type { StrategyState, StrategyTrade } from '../model/strategy';
 import type { SymbolInfo, BarRange } from './MarketDataFeed';
-import type { PriceStyle } from '../options';
+import type { MarketSession, PriceStyle } from '../options';
 
 /**
  * A cache-backed data gateway the engine uses to fetch ANY `(symbol, timeframe)`
@@ -83,6 +83,10 @@ export interface ExecutionMarket {
      *  fetches it asynchronously (the `MarketDataFeed.symbolInfo` port is synchronous), so
      *  the first run can see a synthesized fallback and later runs the real values. */
     symbolInfo?: SymbolInfo;
+    /** The chart's trading session (`'regular'` | `'extended'`) on markets that have one;
+     *  absent = the provider's default. The bars an execution receives already ARE that
+     *  session's tape — engines use it for metadata such as Pine's `syminfo.session`. */
+    session?: MarketSession;
     /** The chart's active price style. An engine adapter encodes a bar-transforming style
      *  into the chart's ticker identity (the extended ticker `"SYM;heikinashi"` — see
      *  `chartTickerOf`), from which chart-type builtins derive. The BARS an execution
