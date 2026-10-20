@@ -22,6 +22,9 @@ export interface LayoutsControllerOptions {
     /** Quiet time after a layout is applied before the chart counts as "as saved" (default 800 ms). A restore
      *  keeps changing the state for a moment (indicators load, bars deepen) — that is not the user's edit. */
     settleMs?: number;
+    /** Open the most recently used layout at startup (default true). False keeps the chart the host
+     *  built — a preset the page picked, e.g. from its URL — while the saved layouts stay listed. */
+    openRecent?: boolean;
     /** Initial autosave choice (default on). */
     autosave?: boolean;
     /** The autosave choice changed — persist it. */
@@ -91,14 +94,15 @@ export class LayoutsController {
         this.notify();
     }
 
-    /** Take stock at startup: remember the defaults, list the layouts, and open the most recently used one. */
+    /** Take stock at startup: remember the defaults, list the layouts, and open the most recently used one
+     *  (unless `openRecent` is false). */
     async bootstrap(): Promise<void> {
         this.started = true;
         this.initial = this.cloneState();
         const ok = await this.run(async () => {
             this.layouts = await this.store.list();
         });
-        const latest = ok ? recentLayouts(this.layouts, 1)[0] : undefined;
+        const latest = ok && this.opts.openRecent !== false ? recentLayouts(this.layouts, 1)[0] : undefined;
         if (latest) await this.open(latest.id);
         else this.beginSettle();
     }

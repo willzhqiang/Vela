@@ -6,6 +6,11 @@ All notable changes to Vela, newest first.
 
 ### Added
 
+- **A page-picked preset can skip the saved-layout restore.** `openRecentLayout: false` starts the workspace on
+  what its options describe (say a preset chosen from the URL) instead of the most recently used saved layout;
+  the saved layouts stay in the menu.
+- **Engines see the chart's session.** `ExecutionMarket.session` carries the chart's trading session
+  (`'regular'` | `'extended'`) and follows a session switch, so a Pine engine can answer `syminfo.session`.
 - **A window can declare its own indicators.** A `cells` entry takes `indicators: { manifest, natives }` —
   manifest names, or `{ name, inputs, props, hidden }` for parameters and a switched-off start (repeat a
   name for several instances) — and opens on exactly that set instead of the manifest's `enabled` entries.

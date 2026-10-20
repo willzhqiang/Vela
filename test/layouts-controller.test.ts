@@ -137,6 +137,17 @@ describe('bootstrap', () => {
         expect(ctl.status().layouts).toHaveLength(2);
     });
 
+    it('openRecent: false lists the saved layouts but keeps the chart the host built', async () => {
+        store.seed('latest', doc('NVDA', '5'), 900);
+        make({ openRecent: false });
+        await ctl.bootstrap();
+        await settle();
+        expect(host.applied).toEqual([]);
+        expect(store.calls).not.toContain('load');
+        expect(ctl.status()).toMatchObject({ current: null, dirty: false });
+        expect(ctl.status().layouts).toHaveLength(1);
+    });
+
     it('changes that arrive while the restored layout is still loading are absorbed, not "unsaved"', async () => {
         store.seed('a', doc('SPY'), 900);
         make();

@@ -146,6 +146,12 @@ export interface VelaWorkspaceOptions extends Omit<VelaOptions, 'height'>, VelaS
      * Autosave is a per-browser preference (localStorage `vela-layouts-autosave`).
      */
     layouts?: LayoutStore;
+    /**
+     * Whether the workspace opens the most recently used saved layout on start (with `layouts`).
+     * Default true. False starts on what these options describe — a preset the host picked, say
+     * from its URL — and leaves the saved layouts in the menu, one click away.
+     */
+    openRecentLayout?: boolean;
 }
 
 /** A cell's {@link ScriptRun}, tagged with the cell it ran in. */
@@ -905,6 +911,7 @@ export class VelaWorkspace {
                 onStateChanged: (fn) => this.events.on('state:changed', fn),
             },
             autosave,
+            openRecent: this.opts.openRecentLayout,
             onAutosaveChange: (on) => {
                 try {
                     window.localStorage.setItem(AUTOSAVE_KEY, on ? 'on' : 'off');
