@@ -373,6 +373,8 @@ The button opens the **Manage layouts** menu:
 On start the most recently used layout is opened. Applying a layout restores indicators and
 deepens history over a moment; changes made *by that restore* do not count as unsaved edits.
 A store call that fails shows a toast and leaves the chart as it is.
+Set `openRecentLayout: false` to start on what the options describe instead — a preset your page
+picked, say from its URL; the saved layouts stay in the menu.
 
 ### The `LayoutStore` interface
 

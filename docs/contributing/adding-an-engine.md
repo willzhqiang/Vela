@@ -52,6 +52,7 @@ The request carries everything the run needs: the prepared script, market contex
 Two request fields deserve care:
 
 - **`market.symbolInfo` arrives asynchronously.** The feed fetches it in the background, so the first run may see it absent — or a synthesized fallback — and a later run the real values. Tolerate both; never treat its absence as an error.
+- **`market.session` is the chart's trading session** (`'regular'` | `'extended'`, absent = the provider's default). The bars already are that session's tape; use it for metadata such as Pine's `syminfo.session`.
 - **`market.chartStyle` is metadata, not a request to transform.** On a bar-transforming price style (e.g. Heikin Ashi) the bars you receive are *already* the transformed view. What the engine does with the flag: encode it into the chart's ticker identity (the extended ticker, `"SYM;heikinashi"`), so a security-style secondary fetch can distinguish "the chart's derived series" from raw data — the standard ticker opts back into raw. Engines with no such feature may ignore it.
 
 ## The data inversion (the heart of it)
